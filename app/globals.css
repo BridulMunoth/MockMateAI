@@ -332,3 +332,64 @@
     transform: translateY(0);
   }
 }
+
+/* ==========================================
+ * SUPERCOOL GLOSSY TOAST OVERRIDES (SONNER)
+ * ========================================== */
+
+[data-sonner-toaster][data-theme="dark"] [data-sonner-toast],
+[data-sonner-toaster] [data-sonner-toast] {
+  background: rgba(14, 15, 23, 0.95) !important;
+  backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(168, 85, 247, 0.3) !important;
+  box-shadow: 0px 8px 30px -5px rgba(139, 92, 246, 0.3) !important;
+  color: white !important;
+  border-radius: 14px !important;
+  overflow: hidden !important;
+  position: relative;
+  /* Cool slide in/out animation inherently supported by sonner but we can enhance it */
+}
+
+/* The Green Progress Bar Line! */
+[data-sonner-toaster] [data-sonner-toast]::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #10b981, #3b82f6) !important;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.8) !important;
+  animation: sonner-progress var(--toast-duration, 4000ms) linear forwards;
+}
+
+[data-sonner-toaster] [data-sonner-toast].toast-long::after {
+   animation-duration: 8000ms !important;
+}
+
+@keyframes sonner-progress {
+  0% { width: 100%; border-bottom-right-radius: 0; }
+  100% { width: 0%; border-bottom-right-radius: 14px; }
+}
+
+/* Glossy Violet Action "Resend" Button */
+[data-sonner-toaster] [data-button] {
+  background: linear-gradient(135deg, #7c3aed, #3b82f6) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 4px 15px rgba(124, 58, 237, 0.6) !important;
+  color: white !important;
+  font-weight: 700 !important;
+  transition: all 0.3s ease !important;
+  border-radius: 8px !important;
+}
+
+[data-sonner-toaster] [data-button]:hover {
+  box-shadow: 0 8px 25px rgba(124, 58, 237, 0.9) !important;
+  transform: translateY(-2px) !important;
+  cursor: pointer;
+}
+
+/* Glossy Violet Icons (Tick logos, Info logos) */
+[data-sonner-toaster] [data-icon] > svg {
+  color: #a855f7 !important;
+  filter: drop-shadow(0 0 8px rgba(168, 85, 247, 0.8)) !important;
+}
