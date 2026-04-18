@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
-import { isSignInWithEmailLink, signInWithEmailLink } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { isSignInWithEmailLink, signInWithEmailLink, updateProfile } from "firebase/auth";
+import { auth } from "@/firebase/client";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { signUp, setSessionCookie } from "@/lib/actions/auth.action";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CheckCircle2, Loader2, MailQuestion } from "lucide-react";
@@ -39,8 +40,56 @@ function FinishSignUpContent() {
   const completeSignIn = async (email: string) => {
     try {
       setIsLoading(true);
-      await signInWithEmailLink(auth, email, window.location.href);
+      const userCredential = await signInWithEmailLink(auth, email, window.location.href);
+      // ==========================================
+      // MAGIC LINK CACHE RETRIEVAL & SYNC
+      // ==========================================
+      // Magic links only verify the email. We temporarily stashed the user's intended
+      // Name and Avatar in localStorage before they clicked the link in their inbox.
+      const storedName = window.localStorage.getItem("nameForSignIn");
+      const storedAvatar = window.localStorage.getItem("avatarForSignIn");
+      
+      // If we have cached profile data but the newly authenticated Firebase account lacks it, 
+      // we permanently attach that data now using `updateProfile`.
+      if ((storedName && !userCredential.user.displayName) || (storedAvatar && !userCredential.user.photoURL)) {
+          try {
+             await updateProfile(userCredential.user, { 
+                 ...(storedName ? { displayName: storedName } : {}),
+                 ...(storedAvatar ? { photoURL: storedAvatar } : {})
+             });
+          } catch(err) {
+              console.error("Failed to append profile metadata locally.", err);
+          }
+      }
+
+      if (userCredential.user) {
+        // Officially register the user into our dedicated Firestore `users` collection.
+        const result = await signUp({
+          uid: userCredential.user.uid,
+          name: storedName || userCredential.user.displayName,
+          email: userCredential.user.email,
+          photoURL: storedAvatar || userCredential.user.photoURL
+        });
+
+        
+        if (!result?.success) {
+            toast.error(result?.message || "Warning: Profile metadata sync failed.");
+        }
+        
+        // Set the Next.js Session Cookie so Server Components know we are logged in
+        const idToken = await userCredential.user.getIdToken(true);
+        const sessionResult = await setSessionCookie(idToken);
+        if (!sessionResult.success) {
+            toast.error(sessionResult.message);
+            // Optionally, handle failure here, but they are authenticated on client. 
+        }
+      }
+
+      // SECURITY & CLEANUP: Discard the cached local variables to avoid leaking data to subsequent sessions
       window.localStorage.removeItem("emailForSignIn");
+      window.localStorage.removeItem("nameForSignIn");
+      window.localStorage.removeItem("avatarForSignIn");
+      
       toast.success("Successfully verified email!");
       setIsSuccess(true);
       

@@ -78,9 +78,10 @@ interface SignInParams {
 
 interface SignUpParams {
   uid: string;
-  name: string;
-  email: string;
-  password: string;
+  name?: string | null;
+  email?: string | null;
+  password?: string;
+  photoURL?: string | null;
 }
 
 type FormType = "sign-in" | "sign-up";

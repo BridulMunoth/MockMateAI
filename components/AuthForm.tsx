@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
@@ -13,9 +13,11 @@ import {
   signInWithEmailAndPassword,
   sendEmailVerification,
   updateProfile,
-  signOut
+  signOut,
+  sendPasswordResetEmail
 } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { auth } from "@/firebase/client";
+import { signUp, signIn, setSessionCookie, checkUserExists } from "@/lib/actions/auth.action";
 
 import { Button } from "@/components/ui/button"
 import Image from "next/image";
@@ -25,14 +27,32 @@ import FormField from "@/components/FormField";
 import {useRouter} from "next/navigation";
 
 /**
+ * ==========================================
+ * CURATED AESTHETIC AVATARS (DICEBEAR API)
+ * ==========================================
+ * An array of popular, modern avatar variants from the DiceBear API. 
+ * Provides an immediate "SaaS" level professional feel when signing up natively.
+ */
+const AVATARS = [
+    "/avatars/hero_iron.png",
+    "/avatars/hero_spider.png",
+    "/avatars/dog.png",
+    "/avatars/heist.png",
+    "/avatars/game_guard.png",
+    "/avatars/batman.png",
+    "/avatars/robot.png",
+    "/avatars/panda.png",
+];
+
+/**
  * ZOD VALIDATION SCHEMA
  * This defines exactly what data is allowed inside our form and automatically throws errors if the user breaks a rule.
  * By passing `isPasswordless`, the schema becomes "smart": it ignores name/password checks during Magic Link logins!
  */
 const authFormSchema = (type: FormType, isPasswordless: boolean) => {
     return z.object({
-        // Name is ONLY required when signing up normally (not passwordless)
-        name: type === 'sign-up' && !isPasswordless 
+        // Name is ONLY required when signing up normally
+        name: type === 'sign-up' 
             ? z.string().min(3, "Name must be at least 3 characters") 
             : z.string().optional(),
             
@@ -55,8 +75,33 @@ const AuthForm = ({ type }: { type: FormType }) => {
     // State to toggle between Standard Password login and Magic Link login UI
     const [isPasswordless, setIsPasswordless] = useState(false);
     
+    // Avatar selection state
+    const [selectedAvatar, setSelectedAvatar] = useState<string>(AVATARS[0]);
+
     // Loading state prevents users from spamming the submit button
     const [isLoading, setIsLoading] = useState(false);
+    
+    // Magic Link Abuse Prevention State
+    const [cooldownTime, setCooldownTime] = useState(0);
+    const [magicLinkCount, setMagicLinkCount] = useState(0);
+    const MAGIC_LINK_LIMIT = 3;
+    
+    // Forgot Password Abuse Prevention State
+    const [resetCooldownTime, setResetCooldownTime] = useState(0);
+
+    useEffect(() => {
+        if (cooldownTime > 0) {
+            const timer = setTimeout(() => setCooldownTime(cooldownTime - 1), 1000);
+            return () => clearTimeout(timer);
+        }
+    }, [cooldownTime]);
+
+    useEffect(() => {
+        if (resetCooldownTime > 0) {
+            const timer = setTimeout(() => setResetCooldownTime(resetCooldownTime - 1), 1000);
+            return () => clearTimeout(timer);
+        }
+    }, [resetCooldownTime]);
     
     // Dynamically retrieve the validation schema. If toggle changes, schema instantly adapts!
     const formSchema = authFormSchema(type, isPasswordless);
@@ -72,6 +117,47 @@ const AuthForm = ({ type }: { type: FormType }) => {
     })
 
     /**
+     * SECURE FORGOT PASSWORD HANDLER
+     * Bypasses the form submission completely and securely pings the Firebase Admin Server
+     * to perform a pre-flight check before dispensing an official reset email.
+     */
+    const handleForgotPassword = async (e: React.MouseEvent) => {
+        e.preventDefault();
+        
+        const email = form.getValues('email');
+        if (!email || email.trim() === '') {
+            toast.error("Please enter your email address first!");
+            return;
+        }
+
+        if (resetCooldownTime > 0) {
+            toast.error(`Please wait ${resetCooldownTime} seconds before requesting another reset link.`);
+            return;
+        }
+
+        try {
+            setIsLoading(true);
+            
+            // PRE-FLIGHT CHECK: Ensure the user actually exists!
+            const userCheck = await checkUserExists(email);
+            if (!userCheck.exists) {
+                toast.error("No account found with that email address. Create an account instead.");
+                return;
+            }
+
+            // Dispatch Official Password Reset
+            await sendPasswordResetEmail(auth, email);
+            toast.success("Password reset link sent! Check your inbox.");
+            setResetCooldownTime(60); // Apply strict 60s abuse lock!
+        } catch (error: any) {
+            console.error(error);
+            toast.error(error.message || "Failed to send reset email.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    /**
      * MAIN AUTHENTICATION HANDLER
      * Triggers when the user successfully passes all Zod validation rules and clicks the button.
      */
@@ -83,6 +169,35 @@ const AuthForm = ({ type }: { type: FormType }) => {
             // 1. MAGIC LINK (PASSWORDLESS) FLOW
             // ==========================================
             if (isPasswordless) {
+                
+                // Rate Limiter Checks
+                if (magicLinkCount >= MAGIC_LINK_LIMIT) {
+                    toast.error("You've reached the maximum number of magic links for this session. Please use a password or Google to sign in.");
+                    setIsLoading(false);
+                    return;
+                }
+                
+                if (cooldownTime > 0) {
+                    toast.error(`Please wait ${cooldownTime} seconds before requesting another link.`);
+                    setIsLoading(false);
+                    return;
+                }
+                
+                // PRE-FLIGHT CHECK: Ensure the user actually exists (or doesn't exist) before sending emails!
+                const userCheck = await checkUserExists(values.email);
+                
+                if (type === 'sign-in' && !userCheck.exists) {
+                    toast.error(userCheck.message || 'User does not exist. Create an account instead.');
+                    setIsLoading(false);
+                    return;
+                }
+                
+                if (type === 'sign-up' && userCheck.exists) {
+                    toast.error('This email is already registered. Please sign in instead.');
+                    setIsLoading(false);
+                    return;
+                }
+
                 // Setup configuration where Firebase should bounce the user back after clicking the email link
                 const actionCodeSettings = {
                   url: window.location.origin + '/finishSignUp', // Redirection UI route you created!
@@ -92,8 +207,18 @@ const AuthForm = ({ type }: { type: FormType }) => {
                 // Blast the magic link out via Firebase
                 await sendSignInLinkToEmail(auth, values.email, actionCodeSettings);
                 
+                // Start cooldown timer and increment tracking limits securely!
+                setCooldownTime(90);
+                setMagicLinkCount(prev => prev + 1);
+                
                 // Store email aggressively in local storage so the device instantly remembers them upon returning
                 window.localStorage.setItem('emailForSignIn', values.email);
+                
+                // If they provided a name, save it to apply after they click the link!
+                if(type === 'sign-up') {
+                     if (values.name) window.localStorage.setItem('nameForSignIn', values.name);
+                     if (selectedAvatar) window.localStorage.setItem('avatarForSignIn', selectedAvatar);
+                }
                 
                 toast.success('Magic link sent! Check your email to complete sign in.');
                 setIsLoading(false);
@@ -104,13 +229,29 @@ const AuthForm = ({ type }: { type: FormType }) => {
             // 2. STANDARD PASSWORD FLOW (SIGN-UP)
             // ==========================================
             if(type === 'sign-up') {
-                // Create the user in Firebase backend
+                // Create the user in Firebase Auth natively
                 const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password!);
                 
-                // If they provided a name, map it into their hidden Firebase profile
-                // If they provided a name, map it into their hidden Firebase profile
-                if (values.name) {
-                    await updateProfile(userCredential.user, { displayName: values.name });
+                // We securely map the UI Name and selected DiceBear avatar onto the Firebase Profile itself
+                if (values.name || selectedAvatar) {
+                    await updateProfile(userCredential.user, { 
+                        ...(values.name ? { displayName: values.name } : {}),
+                        ...(selectedAvatar ? { photoURL: selectedAvatar } : {})
+                    });
+                }
+                
+                // Immediately synchronize this new identity against our Firestore 'users' collection
+                const result = await signUp({
+                    uid: userCredential.user.uid,
+                    name: values.name,
+                    email: userCredential.user.email,
+                    photoURL: selectedAvatar || userCredential.user.photoURL
+                });
+                
+                if (!result?.success) {
+                    toast.error(result?.message);
+                    // We don't fully abort here because they STILL successfully registered in Firebase Auth!
+                    // Continuing down to send the verification email so they aren't trapped in limbo.
                 }
                 
                 // Redirect user to sign-in page smoothly after clicking the link in their email
@@ -163,6 +304,17 @@ const AuthForm = ({ type }: { type: FormType }) => {
                     return;
                 }
                 
+                // Record the sign-in timestamp in our Database
+                await signIn(userCredential.user.uid);
+                
+                // Set the Next.js Session Cookie so Server Components know we are logged in
+                const idToken = await userCredential.user.getIdToken();
+                const sessionResult = await setSessionCookie(idToken);
+                if (!sessionResult.success) {
+                    toast.error(sessionResult.message);
+                    return;
+                }
+                
                 toast.success('Signed in successfully.');
                 router.push('/')
             }
@@ -186,8 +338,31 @@ const AuthForm = ({ type }: { type: FormType }) => {
         try {
             setIsLoading(true);
             const provider = new GoogleAuthProvider();
-            await signInWithPopup(auth, provider);
-            toast.success('Successfully signed in with Google!');
+            // Create or Log In the user seamlessly via Google OAuth
+            const userCredential = await signInWithPopup(auth, provider);
+            
+            // Mirror their Google profile information locally into our Firestore DB
+            const result = await signUp({
+                uid: userCredential.user.uid,
+                name: userCredential.user.displayName,
+                email: userCredential.user.email,
+                photoURL: userCredential.user.photoURL
+            });
+            
+            if (!result?.success) {
+                toast.error(result?.message || "Failed to fully sync background profile.");
+            } else {
+                toast.success('Successfully signed in with Google!');
+            }
+            
+            // Set the Next.js Session Cookie so Server Components know we are logged in
+            const idToken = await userCredential.user.getIdToken();
+            const sessionResult = await setSessionCookie(idToken);
+            if (!sessionResult.success) {
+                toast.error(sessionResult.message);
+                return;
+            }
+            
             router.push('/');
         } catch (error: any) {
             // console.error(error); // Hidden so Next.js doesn't show a massive red screen overlay in Dev Mode for intentional errors!
@@ -345,8 +520,8 @@ const AuthForm = ({ type }: { type: FormType }) => {
                     />
                 </div>
 
-                <div className="flex justify-center w-full mt-6 mb-8">
-                    <div className="animate-glow-float flex items-start justify-center space-x-1 w-full overflow-hidden">
+                <div className="flex justify-center w-full mt-6 mb-8 pt-2">
+                    <div className="animate-glow-float flex items-start justify-center space-x-2 w-full px-2">
                         <span className="fancy-quote text-blue-400 drop-shadow-md">“</span>
                         <h3 className="text-gradient-shimmer italic font-serif text-lg sm:text-xl md:text-[26px] tracking-wide font-extrabold pb-1 px-1 whitespace-nowrap">
                             Practice Job Interview with AI
@@ -356,13 +531,31 @@ const AuthForm = ({ type }: { type: FormType }) => {
                 </div>
 
                     <form onSubmit={form.handleSubmit(onSubmit)} className="w-full space-y-5 form">
-                        {!isSignIn && !isPasswordless && (
+                        {!isSignIn && (
                             <FormField
                                 control={form.control}
                                 name="name"
                                 label="Name"
                                 placeholder="Your Name"
                             />
+                        )}
+
+                        {!isSignIn && (
+                            <div className="flex flex-col gap-3 transition-all mt-2">
+                                <label className="text-[15px] font-semibold text-white">Choose your Aesthetic Avatar <span className="text-pink-400 opacity-80">(Optional)</span></label>
+                                <div className="grid grid-cols-4 gap-3 mb-2">
+                                    {AVATARS.map((avatar) => (
+                                        <div 
+                                            key={avatar} 
+                                            onClick={() => setSelectedAvatar(avatar)}
+                                            className={`cursor-pointer rounded-full overflow-hidden border-[3px] transition-all duration-300 ${selectedAvatar === avatar ? 'border-violet-500 scale-110 shadow-[0_0_15px_rgba(139,92,246,0.6)]' : 'border-transparent hover:scale-105 opacity-60 hover:opacity-100'}`}
+                                        >
+                                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                                            <img src={avatar} alt="avatar" className="w-full h-auto bg-white/5 object-cover" />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
                         )}
                         <FormField
                             control={form.control}
@@ -373,18 +566,30 @@ const AuthForm = ({ type }: { type: FormType }) => {
                         />
 
                         {!isPasswordless && (
-                            <FormField
-                                control={form.control}
-                                name="password"
-                                label="Password"
-                                placeholder="Enter your password"
-                                type="password"
-                            />
+                            <div className="flex flex-col gap-1 w-full">
+                                <FormField
+                                    control={form.control}
+                                    name="password"
+                                    label="Password"
+                                    placeholder="Enter your password"
+                                    type="password"
+                                />
+                                {isSignIn && (
+                                    <button
+                                        type="button"
+                                        onClick={handleForgotPassword}
+                                        disabled={isLoading || resetCooldownTime > 0}
+                                        className="text-[14px] text-pink-400 font-medium hover:text-white transition-colors duration-200 self-end mt-1 px-1 flex items-center justify-end disabled:opacity-50"
+                                    >
+                                        {resetCooldownTime > 0 ? `Wait ${resetCooldownTime}s...` : "Forgot Password?"}
+                                    </button>
+                                )}
+                            </div>
                         )}
 
                         <div className="flex flex-col gap-6 pt-4">
-                            <Button className="!w-full !rounded-full !min-h-[3rem] !font-bold !px-5 cursor-pointer btn-vibrant text-md" type="submit" disabled={isLoading}>
-                                {isLoading ? "Processing..." : isPasswordless ? 'Send Magic Link ✨' : (isSignIn ? 'Sign in to Continue' : 'Create Account')}
+                            <Button className="!w-full !rounded-full !min-h-[3rem] !font-bold !px-5 cursor-pointer btn-vibrant text-md" type="submit" disabled={isLoading || (isPasswordless && cooldownTime > 0) || (isPasswordless && magicLinkCount >= MAGIC_LINK_LIMIT)}>
+                                {isLoading ? "Processing..." : isPasswordless && magicLinkCount >= MAGIC_LINK_LIMIT ? 'Limit Reached 🛑' : isPasswordless && cooldownTime > 0 ? `Wait ${cooldownTime}s ⏱️` : isPasswordless ? 'Send Magic Link ✨' : (isSignIn ? 'Sign in to Continue' : 'Create Account')}
                             </Button>
                             
                             <div className="relative mt-2 mb-2">
