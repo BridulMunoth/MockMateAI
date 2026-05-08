@@ -60,6 +60,19 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* New Aurora Theme Variables */
+  --gradient-primary: linear-gradient(135deg, hsl(258 90% 66%), hsl(190 95% 60%));
+  --gradient-aurora: linear-gradient(135deg, hsl(258 90% 66% / 0.9), hsl(290 90% 65% / 0.6), hsl(190 95% 60% / 0.8));
+  --gradient-surface: linear-gradient(180deg, hsl(232 28% 11% / 0.8), hsl(232 28% 8% / 0.6));
+  --gradient-glow: radial-gradient(circle at 50% 0%, hsl(258 90% 66% / 0.35), transparent 60%);
+  --gradient-text: linear-gradient(135deg, hsl(220 25% 98%), hsl(190 95% 75%));
+  
+  --shadow-glow: 0 0 60px -10px hsl(258 90% 66% / 0.5);
+  --shadow-elegant: 0 20px 60px -20px hsl(232 60% 2% / 0.7);
+  --shadow-soft: 0 8px 30px -8px hsl(232 60% 2% / 0.5);
+  
+  --transition-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .dark {
@@ -331,6 +344,80 @@
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* ==========================================
+ * DELIGHTFUL DESIGN STUDIO UTILITIES
+ * ========================================== */
+
+@utility glass {
+  @apply bg-card/60 backdrop-blur-xl border border-white/5;
+  box-shadow: var(--shadow-soft);
+}
+
+@utility glass-strong {
+  @apply bg-card/80 backdrop-blur-2xl border border-white/10;
+  box-shadow: var(--shadow-elegant);
+}
+
+@utility text-gradient {
+  background: var(--gradient-text);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@utility text-aurora {
+  background: var(--gradient-aurora);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@utility bg-aurora {
+  background: var(--gradient-aurora);
+}
+
+@utility bg-grid {
+  background-image:
+    linear-gradient(hsl(220 30% 100% / 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(220 30% 100% / 0.04) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse at 50% 0%, black 30%, transparent 75%);
+}
+
+@utility ring-glow {
+  box-shadow: 0 0 0 1px hsl(258 90% 66% / 0.4), 0 0 40px hsl(258 90% 66% / 0.35);
+}
+
+@utility animate-float { 
+  animation: float 6s ease-in-out infinite; 
+}
+@utility animate-pulse-glow { 
+  animation: pulse-glow 2.4s ease-in-out infinite; 
+}
+@utility animate-fade-up { 
+  animation: fade-up 0.7s var(--transition-smooth) both; 
+}
+@utility animate-shimmer { 
+  animation: shimmer 2.5s linear infinite; 
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-12px); }
+}
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 hsl(258 90% 66% / 0.5); }
+  50% { box-shadow: 0 0 0 18px hsl(258 90% 66% / 0); }
+}
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
 }
 
 /* ==========================================

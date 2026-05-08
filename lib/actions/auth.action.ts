@@ -200,3 +200,33 @@ export async function isAuthenticated() {
     const user = await getCurrentUser();
     return !!user;
 }
+
+/**
+ * ==========================================
+ * FETCH RECENT USERS (FOR SOCIAL PROOF)
+ * ==========================================
+ * Retrieves a list of recent users who have signed up, specifically for their avatars.
+ * @param limit The maximum number of users to retrieve
+ */
+export async function getRecentUsers(limitCount: number = 4) {
+    try {
+        const usersSnapshot = await adminDb.collection("users")
+            .orderBy("createdAt", "desc")
+            .limit(limitCount)
+            .get();
+
+        const users: string[] = [];
+        
+        usersSnapshot.forEach((doc) => {
+            const data = doc.data();
+            if (data.photoURL) {
+                users.push(data.photoURL);
+            }
+        });
+
+        return users;
+    } catch (error) {
+        console.error("Failed to fetch recent users:", error);
+        return [];
+    }
+}

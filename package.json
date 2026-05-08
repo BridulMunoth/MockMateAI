@@ -9,13 +9,16 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@ai-sdk/google": "^3.0.70",
     "@hookform/resolvers": "^5.2.2",
+    "@vapi-ai/web": "^2.5.2",
+    "ai": "^6.0.176",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "firebase": "^12.12.0",
     "firebase-admin": "^13.8.0",
     "lucide-react": "^1.7.0",
-    "next": "16.2.2",
+    "next": "^16.2.4",
     "next-themes": "^0.4.6",
     "radix-ui": "^1.4.3",
     "react": "19.2.4",

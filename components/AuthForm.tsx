@@ -316,7 +316,7 @@ const AuthForm = ({ type }: { type: FormType }) => {
                 }
                 
                 toast.success('Signed in successfully.');
-                router.push('/')
+                router.push('/dashboard')
             }
         } catch (error: any) {
             // console.error(error); // Hidden so Next.js doesn't show a massive red screen overlay in Dev Mode for intentional errors!
@@ -363,7 +363,7 @@ const AuthForm = ({ type }: { type: FormType }) => {
                 return;
             }
             
-            router.push('/');
+            router.push('/dashboard');
         } catch (error: any) {
             // console.error(error); // Hidden so Next.js doesn't show a massive red screen overlay in Dev Mode for intentional errors!
             toast.error(`Google sign in failed: ${error.message || error}`);
@@ -510,14 +510,16 @@ const AuthForm = ({ type }: { type: FormType }) => {
             <div className="flex flex-col gap-6 glow-card-inner py-14 px-8 sm:px-12 min-h-full">
                 
                 <div className="flex flex-row gap-2 justify-center -mt-8 -mb-10 lg:-mt-12 lg:-mb-12">
-                    <Image
-                        src="/AIMockMateLogoBig.jpeg"
-                        alt="logo"
-                        height={120}
-                        width={306}
-                        className="object-cover object-center animate-glow-float pointer-events-none select-none"
-                        draggable={false}
-                    />
+                    <Link href="/">
+                        <Image
+                            src="/AIMockMateLogo.jpeg"
+                            alt="logo"
+                            height={120}
+                            width={306}
+                            className="object-cover object-center animate-glow-float pointer-events-none select-none"
+                            draggable={false}
+                        />
+                    </Link>
                 </div>
 
                 <div className="flex justify-center w-full mt-6 mb-8 pt-2">

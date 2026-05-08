@@ -63,7 +63,7 @@ export default function Loading() {
                 {/* The Logo Image (Floating smoothly in the middle - Massively enlarged) */}
                 <div className="relative w-80 h-80 sm:w-[400px] sm:h-[400px] lg:w-[500px] lg:h-[500px] z-30 animate-float drop-shadow-[0_0_100px_rgba(255,255,255,0.15)]">
                     <img 
-                        src="/AIMockMateLogoBig.jpeg" 
+                        src="/AIMockMateLogo.jpeg" 
                         alt="MockMate Loading" 
                         className="w-full h-full object-contain"
                     />

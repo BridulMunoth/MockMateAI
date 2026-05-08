@@ -45,6 +45,5 @@ next-env.d.ts
 # Specifically ignore unused Next.js boilerplate from public, but allow crucial assets like Logos
 /public/*
 !/public/logo.svg
-!/public/AIMockMateLogoBig.jpeg
+!/public/AIMockMateLogo.jpeg
 !/public/avatars/
-/public/covers
