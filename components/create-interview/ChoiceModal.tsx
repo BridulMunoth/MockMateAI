@@ -12,106 +12,198 @@ export const ChoiceModal = ({ userName, onSelect }: Props) => {
   const [hovered, setHovered] = useState<"form" | "voice" | null>(null);
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-4 py-16 relative">
-      {/* Background aurora blobs */}
-      <div className="absolute -top-40 -left-40 h-96 w-96 rounded-full bg-aurora opacity-10 blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-40 -right-40 h-96 w-96 rounded-full bg-aurora opacity-10 blur-3xl pointer-events-none" />
+    <div className="min-h-screen flex flex-col items-center justify-center px-4 py-16 relative overflow-hidden" style={{ background: "#03001a" }}>
+      
+      {/* Ambient background */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(139,92,246,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(139,92,246,0.04)_1px,transparent_1px)] bg-[size:40px_40px]" />
+        <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[700px] h-[500px] rounded-full opacity-25"
+          style={{ background: "radial-gradient(ellipse, rgba(139,92,246,0.6) 0%, transparent 65%)" }} />
+        <div className="absolute -bottom-40 left-1/4 w-80 h-80 rounded-full blur-[120px] bg-fuchsia-800/20" />
+        <div className="absolute top-1/3 -right-20 w-60 h-60 rounded-full blur-[100px] bg-violet-800/20" />
+      </div>
 
       {/* Header */}
-      <div className="text-center mb-14 animate-fade-up">
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full glass text-xs text-muted-foreground mb-6 border border-white/10">
-          <Sparkles className="h-3.5 w-3.5 text-aurora" />
-          <span className="bg-clip-text text-transparent bg-aurora">New Interview Session</span>
+      <div className="text-center mb-14 relative z-10" style={{ animation: "fadeSlideUp 0.7s ease both" }}>
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-medium mb-6"
+          style={{ background: "rgba(139,92,246,0.12)", color: "#c4b5fd", border: "1px solid rgba(139,92,246,0.3)" }}>
+          <Sparkles className="h-3.5 w-3.5" />
+          New Interview Session
         </div>
-        <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-white leading-tight">
+
+        <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight text-white leading-[1.08]">
           Hey {userName}! 👋
           <br />
-          <span className="text-aurora">Let's get you interview-ready</span>
+          <span style={{
+            backgroundImage: "linear-gradient(135deg, #a78bfa, #f0abfc, #67e8f9)",
+            WebkitBackgroundClip: "text",
+            backgroundClip: "text",
+            color: "transparent",
+          }}>
+            Let's get you interview-ready
+          </span>
         </h1>
-        <p className="mt-5 text-muted-foreground text-lg max-w-lg mx-auto leading-relaxed">
-          Taking this step already shows your dedication. Choose how you'd like
-          to set up your practice session.
+
+        <p className="mt-5 text-slate-400 text-lg max-w-md mx-auto leading-relaxed">
+          Taking this step already shows your dedication. Choose how you'd like to set up your practice session.
         </p>
       </div>
 
       {/* Choice Cards */}
-      <div className="grid sm:grid-cols-2 gap-6 w-full max-w-2xl">
-        {/* Form Card */}
+      <div className="grid sm:grid-cols-2 gap-6 w-full max-w-2xl relative z-10" style={{ animation: "fadeSlideUp 0.9s ease both" }}>
+        
+        {/* ── Form Card (ACTIVE) ── */}
         <button
           onClick={() => onSelect("form")}
           onMouseEnter={() => setHovered("form")}
           onMouseLeave={() => setHovered(null)}
-          className="group relative rounded-3xl glass-strong p-8 text-left border border-white/10 hover:border-primary/40 hover:ring-glow transition-all duration-300 hover:scale-[1.02] cursor-pointer overflow-hidden"
+          className="group relative rounded-3xl p-8 text-left overflow-hidden cursor-pointer transition-all duration-500 hover:scale-[1.03]"
+          style={{
+            background: hovered === "form"
+              ? "linear-gradient(135deg, rgba(124,58,237,0.2), rgba(139,92,246,0.1))"
+              : "rgba(255,255,255,0.04)",
+            border: hovered === "form"
+              ? "1px solid rgba(139,92,246,0.5)"
+              : "1px solid rgba(255,255,255,0.08)",
+            boxShadow: hovered === "form"
+              ? "0 0 60px rgba(139,92,246,0.25), 0 20px 60px rgba(0,0,0,0.4)"
+              : "0 8px 40px rgba(0,0,0,0.3)",
+          }}
         >
-          <div className="absolute inset-0 bg-gradient-to-br from-violet-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-3xl" />
+          {/* Corner glow */}
+          <div className="absolute top-0 right-0 w-48 h-48 rounded-full blur-[60px] transition-opacity duration-500"
+            style={{ background: "rgba(124,58,237,0.3)", opacity: hovered === "form" ? 1 : 0 }} />
+
           <div className="relative z-10">
-            <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-700 flex items-center justify-center mb-5 shadow-[0_0_30px_rgba(139,92,246,0.4)] group-hover:shadow-[0_0_40px_rgba(139,92,246,0.6)] transition-shadow">
-              <FileText className="h-7 w-7 text-white" />
+            {/* Icon */}
+            <div className="h-14 w-14 rounded-2xl flex items-center justify-center mb-6 transition-all duration-300"
+              style={{
+                background: hovered === "form" ? "rgba(124,58,237,0.3)" : "rgba(255,255,255,0.06)",
+                border: hovered === "form" ? "1px solid rgba(139,92,246,0.5)" : "1px solid rgba(255,255,255,0.1)",
+                boxShadow: hovered === "form" ? "0 0 30px rgba(124,58,237,0.5)" : "none",
+              }}>
+              <FileText className="h-7 w-7 transition-colors duration-300" style={{ color: hovered === "form" ? "#a78bfa" : "#6b7280" }} />
             </div>
-            <h3 className="text-xl font-semibold text-white mb-2">Fill the Form</h3>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              Type in your role, skills, and optionally upload your resume or job
-              description. Quick and precise.
+
+            <h3 className="text-xl font-bold mb-3 transition-colors duration-300"
+              style={{ color: hovered === "form" ? "#ffffff" : "#d1d5db" }}>
+              Fill the Form
+            </h3>
+            <p className="text-sm leading-relaxed mb-6 text-slate-400">
+              Type in your role, skills, and optionally upload your resume or job description. Quick and precise.
             </p>
-            <div className="mt-6 flex flex-wrap gap-2">
+
+            <div className="flex flex-wrap gap-2">
               {["Role & Skills", "File Upload", "Custom Level"].map((tag) => (
-                <span key={tag} className="text-[11px] px-2.5 py-1 rounded-full bg-secondary/70 border border-white/5 text-muted-foreground">
+                <span
+                  key={tag}
+                  className="text-[11px] px-3 py-1 rounded-full font-medium transition-all duration-300"
+                  style={{
+                    background: hovered === "form" ? "rgba(124,58,237,0.2)" : "rgba(255,255,255,0.05)",
+                    border: hovered === "form" ? "1px solid rgba(139,92,246,0.3)" : "1px solid rgba(255,255,255,0.08)",
+                    color: hovered === "form" ? "#c4b5fd" : "#6b7280",
+                  }}>
                   {tag}
                 </span>
               ))}
             </div>
+
+            {/* Arrow CTA */}
+            <div className="mt-6 flex items-center gap-2 text-sm font-semibold transition-all duration-300"
+              style={{ color: hovered === "form" ? "#a78bfa" : "#4b5563" }}>
+              <span>Get started</span>
+              <span className="transition-transform group-hover:translate-x-1">→</span>
+            </div>
           </div>
         </button>
 
-        {/* Voice Card */}
+        {/* ── Voice Card (DISABLED / COMING SOON) ── */}
         <button
           disabled
           onMouseEnter={() => setHovered("voice")}
           onMouseLeave={() => setHovered(null)}
-          className="group relative rounded-3xl glass-strong p-8 text-left border border-white/5 opacity-60 grayscale-[0.5] transition-all duration-300 cursor-not-allowed overflow-hidden"
+          className="group relative rounded-3xl p-8 text-left overflow-hidden cursor-not-allowed transition-all duration-300"
+          style={{
+            background: "rgba(255,255,255,0.02)",
+            border: "1px solid rgba(255,255,255,0.06)",
+            opacity: 0.65,
+          }}
         >
-          <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-3xl" />
-          
-          {/* Upcoming Feature Badge */}
-          <div className="absolute top-4 right-4 z-20">
-            <span className="px-2.5 py-1 rounded-md bg-secondary border border-white/10 text-[10px] font-bold uppercase tracking-tighter text-muted-foreground group-hover:text-aurora group-hover:border-aurora/30 transition-colors">
-              Coming Soon
-            </span>
+          {/* Coming Soon badge */}
+          <div className="absolute top-5 right-5 z-20 text-[10px] px-2.5 py-1 rounded-md font-bold uppercase tracking-widest transition-all duration-300"
+            style={{
+              background: hovered === "voice" ? "rgba(139,92,246,0.2)" : "rgba(255,255,255,0.06)",
+              border: hovered === "voice" ? "1px solid rgba(139,92,246,0.4)" : "1px solid rgba(255,255,255,0.08)",
+              color: hovered === "voice" ? "#c4b5fd" : "#6b7280",
+            }}>
+            Coming Soon
           </div>
 
           <div className="relative z-10">
-            <div className="h-14 w-14 rounded-2xl bg-secondary flex items-center justify-center mb-5 border border-white/10 group-hover:border-aurora/30 transition-colors">
-              <Mic className="h-7 w-7 text-muted-foreground group-hover:text-aurora transition-colors" />
+            <div className="h-14 w-14 rounded-2xl flex items-center justify-center mb-6"
+              style={{
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.08)",
+              }}>
+              <Mic className="h-7 w-7 transition-colors duration-300" style={{ color: hovered === "voice" ? "#a78bfa" : "#374151" }} />
             </div>
-            <h3 className="text-xl font-semibold text-muted-foreground mb-2">Use Voice Agent</h3>
-            <p className="text-sm text-muted-foreground/60 leading-relaxed">
-              Tell our AI assistant about your interview needs. Just speak
-              naturally — it'll handle the rest.
+
+            <h3 className="text-xl font-bold mb-3 text-slate-600">Use Voice Agent</h3>
+            <p className="text-sm leading-relaxed mb-6 text-slate-700">
+              Tell our AI assistant about your interview needs. Just speak naturally — it'll handle the rest.
             </p>
-            <div className="mt-6 flex flex-wrap gap-2">
+
+            <div className="flex flex-wrap gap-2">
               {["Hands-Free", "AI Powered", "Upcoming"].map((tag) => (
-                <span key={tag} className="text-[11px] px-2.5 py-1 rounded-full bg-secondary/30 border border-white/5 text-muted-foreground/40">
+                <span
+                  key={tag}
+                  className="text-[11px] px-3 py-1 rounded-full"
+                  style={{
+                    background: "rgba(255,255,255,0.03)",
+                    border: "1px solid rgba(255,255,255,0.05)",
+                    color: "#374151",
+                  }}>
                   {tag}
                 </span>
               ))}
             </div>
           </div>
 
-          {/* Hover Overlay Message */}
-          <div className="absolute inset-0 flex items-center justify-center bg-background/60 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-30">
-             <p className="text-sm font-medium text-white bg-aurora/80 px-4 py-2 rounded-full shadow-lg transform translate-y-4 group-hover:translate-y-0 transition-transform">
-               🚀 Upcoming Feature
-             </p>
+          {/* Hover overlay tooltip */}
+          <div
+            className="absolute inset-0 flex items-center justify-center rounded-3xl transition-all duration-300"
+            style={{
+              background: "rgba(3,0,26,0.6)",
+              backdropFilter: "blur(2px)",
+              opacity: hovered === "voice" ? 1 : 0,
+              zIndex: 30,
+            }}
+          >
+            <div className="flex flex-col items-center gap-2 text-center px-6">
+              <div className="w-12 h-12 rounded-full flex items-center justify-center mb-2"
+                style={{ background: "rgba(139,92,246,0.2)", border: "1px solid rgba(139,92,246,0.4)" }}>
+                <Zap className="h-6 w-6 text-violet-400" />
+              </div>
+              <p className="text-base font-bold text-white">🚀 Upcoming Feature</p>
+              <p className="text-sm text-slate-400">We're working hard to bring this to you soon!</p>
+            </div>
           </div>
         </button>
       </div>
 
-      {/* Trust badge */}
-      <div className="mt-12 flex items-center gap-2 text-xs text-muted-foreground animate-fade-up">
+      {/* Trust note */}
+      <div className="mt-12 flex items-center gap-2 text-xs text-slate-600 relative z-10" style={{ animation: "fadeSlideUp 1.1s ease both" }}>
         <Brain className="h-3.5 w-3.5" />
         AI generates personalised questions in under 30 seconds
-        <Zap className="h-3.5 w-3.5 text-aurora" />
+        <Zap className="h-3.5 w-3.5" style={{ color: "#a78bfa" }} />
       </div>
+
+      <style jsx global>{`
+        @keyframes fadeSlideUp {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
     </div>
   );
 };
