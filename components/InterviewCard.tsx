@@ -1,18 +1,22 @@
 import Link from "next/link";
 import { Calendar, Star, ArrowRight } from "lucide-react";
 import DisplayTechIcons from "@/components/DisplayTechIcons";
+import CompanyLogo from "@/components/CompanyLogo";
 
 export type Interview = {
   id: string;
   role: string;
   /** Free-form category: Technical, Behavioral, Mixed, Managerial, Scientific, Creative, etc. */
-  type: string;
+  type: string | string[];
   /** Skills, tools, or domains relevant to this interview */
   techstack: string[];
   createdAt: string; // ISO
   score?: number | null;
-  cover: string; // emoji or single char
-  coverGradient: string; // tailwind gradient classes
+  cover?: string; // emoji or single char
+  coverGradient?: string; // tailwind gradient classes
+  companyName?: string;
+  latestScore?: number | null;
+  attemptCount?: number;
 };
 
 const formatDate = (iso: string) => {
@@ -29,18 +33,23 @@ const getScoreColor = (score: number | null | undefined) => {
 };
 
 const InterviewCard = ({ interview }: { interview: Interview }) => {
-  const taken = interview.score != null;
+  const scoreToUse = interview.latestScore ?? interview.score;
+  const taken = (interview.attemptCount && interview.attemptCount > 0) || scoreToUse != null;
   return (
     <div className="group relative rounded-3xl glass hover:ring-glow transition-all overflow-hidden flex flex-col">
       <div className="absolute -top-16 -right-16 h-40 w-40 rounded-full bg-aurora opacity-10 group-hover:opacity-20 blur-3xl transition" />
 
       {/* Header */}
       <div className="p-6 flex items-start justify-between gap-4">
-        <div className={`h-14 w-14 rounded-2xl ${interview.coverGradient} flex items-center justify-center text-2xl ring-1 ring-white/10 shadow-[var(--shadow-soft)]`}>
-          <span>{interview.cover}</span>
+        <div className={`h-14 w-14 rounded-2xl ${interview.coverGradient || "bg-gradient-to-br from-violet-500 to-indigo-700"} flex items-center justify-center text-2xl ring-1 ring-white/10 shadow-[var(--shadow-soft)] overflow-hidden`}>
+          {interview.companyName ? (
+             <CompanyLogo name={interview.companyName} fallback={interview.companyName.substring(0, 2).toUpperCase()} />
+          ) : (
+             <span>{interview.cover || "✨"}</span>
+          )}
         </div>
         <span className="text-[11px] uppercase tracking-widest px-2.5 py-1 rounded-full bg-secondary/70 border border-white/5 text-muted-foreground">
-          {interview.type}
+          {Array.isArray(interview.type) ? interview.type[0] : interview.type}
         </span>
       </div>
 
@@ -55,8 +64,8 @@ const InterviewCard = ({ interview }: { interview: Interview }) => {
             {formatDate(interview.createdAt)}
           </span>
           <span className="relative inline-flex items-center gap-1.5 group/star cursor-help">
-            <Star className={`h-3.5 w-3.5 transition-colors ${getScoreColor(interview.score)}`} />
-            {taken ? `${interview.score}/100` : "Not taken"}
+            <Star className={`h-3.5 w-3.5 transition-colors ${getScoreColor(scoreToUse)}`} />
+            {taken ? `${scoreToUse}/100` : "Not taken"}
 
             {/* Custom Tooltip */}
             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-44 p-3 rounded-xl glass-strong border border-white/10 shadow-[0_10px_40px_rgba(0,0,0,0.5)] opacity-0 translate-y-2 pointer-events-none group-hover/star:opacity-100 group-hover/star:translate-y-0 transition-all duration-300 z-50">
@@ -94,13 +103,23 @@ const InterviewCard = ({ interview }: { interview: Interview }) => {
       <div className="p-6 pt-4 flex items-center justify-between z-10">
         <DisplayTechIcons techstack={interview.techstack} />
         
-        <Link
-          href={taken ? `/feedback` : `/interview`}
-          className="inline-flex items-center gap-1.5 text-sm font-medium px-3.5 py-1.5 rounded-full bg-aurora text-primary-foreground hover:scale-[1.03] transition-transform"
-        >
-          {taken ? "View feedback" : "Take it"}
-          <ArrowRight className="h-3.5 w-3.5" />
-        </Link>
+        <div className="flex items-center gap-2">
+          {taken && (
+            <Link
+              href={`/feedback?id=${interview.id}`}
+              className="inline-flex items-center text-xs font-medium px-3.5 py-1.5 rounded-full glass hover:ring-glow transition-all text-white"
+            >
+              View feedback
+            </Link>
+          )}
+          <Link
+            href={`/interview/new?id=${interview.id}`}
+            className="inline-flex items-center gap-1.5 text-xs font-medium px-4 py-1.5 rounded-full bg-aurora text-primary-foreground hover:scale-[1.03] shadow-[var(--shadow-glow)] transition-transform"
+          >
+            {taken ? "Take again" : "Take it"}
+            <ArrowRight className="h-3 w-3" />
+          </Link>
+        </div>
       </div>
     </div>
   );

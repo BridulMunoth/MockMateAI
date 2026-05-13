@@ -14,7 +14,7 @@ interface Props {
   role: string;
   formData?: any;
   userId?: string | null;
-  onReadyToJoin: () => void;
+  onReadyToJoin: (interviewId: string) => void;
 }
 
 const TIPS = [
@@ -57,6 +57,7 @@ export const GeneratingScreen = ({ role, formData, userId, onReadyToJoin }: Prop
   const [progress, setProgress] = useState(0);
   const [isReady, setIsReady] = useState(false);
   const [orbitAngle, setOrbitAngle] = useState(0);
+  const [interviewId, setInterviewId] = useState<string>("");
 
   // Rotate tip every 4s
   useEffect(() => {
@@ -86,7 +87,7 @@ export const GeneratingScreen = ({ role, formData, userId, onReadyToJoin }: Prop
       try {
         if (!formData) throw new Error("No form data");
 
-        await fetch("/api/vapi/generate", {
+        const res = await fetch("/api/vapi/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -101,6 +102,11 @@ export const GeneratingScreen = ({ role, formData, userId, onReadyToJoin }: Prop
             userid: userId,
           }),
         });
+
+        const data = await res.json();
+        if (data.interviewId) {
+          setInterviewId(data.interviewId);
+        }
 
       } catch (err) {
         console.error("Error generating:", err);
@@ -211,7 +217,7 @@ export const GeneratingScreen = ({ role, formData, userId, onReadyToJoin }: Prop
         {isReady && (
           <div className="flex flex-col sm:flex-row gap-3 animate-fadeIn">
             <button
-              onClick={onReadyToJoin}
+              onClick={() => onReadyToJoin(interviewId)}
               className="inline-flex items-center justify-center gap-2 px-8 py-3 rounded-full bg-aurora text-primary-foreground font-semibold shadow-[var(--shadow-glow)] hover:scale-[1.03] transition-transform"
             >
               Connect to Call

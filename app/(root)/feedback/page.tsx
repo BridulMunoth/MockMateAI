@@ -1,4 +1,10 @@
+"use client";
+
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useState, Suspense } from "react";
+import { collection, query, where, getDocs, doc, getDoc, orderBy } from "firebase/firestore";
+import { db } from "@/firebase/client";
 import {
   ArrowRight,
   CheckCircle2,
@@ -9,35 +15,17 @@ import {
   TrendingUp,
   Star,
   Calendar,
+  MessageSquare,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 
-const overall = 84;
-const createdAt = "May 1, 2026 · 2:30 PM";
-
-const categoryScores = [
-  { name: "Communication Skills", score: 88, comment: "Clear, well-paced delivery with confident framing throughout." },
-  { name: "Technical Knowledge", score: 79, comment: "Solid breadth across the stack; deepen on tradeoffs and edge cases." },
-  { name: "Problem-Solving", score: 86, comment: "Strong top-down decomposition and clarifying questions." },
-  { name: "Cultural & Role Fit", score: 90, comment: "Showed ownership, curiosity, and a collaborative mindset." },
-  { name: "Confidence & Clarity", score: 82, comment: "Steady tone; a few hedges in the deeper technical sections." },
-];
-
-const strengths = [
-  "Excellent clarification questions before diving into solutions.",
-  "Used precise vocabulary (CRDTs, idempotency, backpressure) accurately.",
-  "Drew clean boundaries between client and server responsibilities.",
-  "Connected technical choices back to user impact.",
-];
-
-const improvements = [
-  "Spend ~30s longer on tradeoffs before committing to an approach.",
-  "Quantify scale: QPS, payload sizes, fan-out costs.",
-  "Address observability — metrics, traces, alerting.",
-  "Tighten STAR stories with measurable outcomes.",
-];
-
-const finalAssessment =
-  "Strong, well-structured interview with confident delivery. You demonstrated clear architectural thinking and made smart, principled tradeoffs. To convert from a 'hire' to 'strong hire', sharpen the quantitative reasoning and proactively cover failure modes and observability. With one focused practice round on tradeoffs and scale, you're offer-ready.";
+const formatDuration = (startIso?: string, endIso?: string) => {
+  if (!startIso || !endIso) return "32m"; // fallback
+  const ms = new Date(endIso).getTime() - new Date(startIso).getTime();
+  const mins = Math.max(1, Math.floor(ms / 60000));
+  return `${mins}m`;
+};
 
 const Ring = ({ value }: { value: number }) => {
   const r = 56;
@@ -74,181 +62,170 @@ const Ring = ({ value }: { value: number }) => {
   );
 };
 
-const Feedback = () => {
+const FeedbackContent = () => {
+  const searchParams = useSearchParams();
+  const id = searchParams.get("id");
+  const [interview, setInterview] = useState<any>(null);
+  const [feedbacks, setFeedbacks] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [openAccordionId, setOpenAccordionId] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadData() {
+      if (!id) {
+        setLoading(false);
+        return;
+      }
+      try {
+        const docSnap = await getDoc(doc(db, "interviews", id));
+        if (docSnap.exists()) {
+          setInterview(docSnap.data());
+        }
+
+        const q = query(
+          collection(db, "feedbacks"), 
+          where("interviewId", "==", id),
+        );
+        const fbSnap = await getDocs(q);
+        const fbList = fbSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        // Client side sort since we might not have a composite index ready
+        fbList.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        
+        setFeedbacks(fbList);
+        if (fbList.length > 0) {
+          setOpenAccordionId(fbList[0].id); // Open latest by default
+        }
+      } catch (e) {
+        console.error("Failed to load feedback", e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, [id]);
+
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center text-aurora">Loading feedback...</div>;
+  }
+
+  if (!interview) {
+    return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Interview not found.</div>;
+  }
+
   return (
-    <div className="container mx-auto py-10 px-4 md:px-8 space-y-6">
+    <div className="container mx-auto py-10 px-4 md:px-8 space-y-6 max-w-5xl">
       {/* Header */}
       <div className="text-center max-w-3xl mx-auto pt-2">
         <p className="text-xs uppercase tracking-widest text-aurora">Session report</p>
         <h1 className="text-3xl md:text-5xl font-semibold tracking-tight mt-2">
-          Feedback on the Interview —{" "}
-          <span className="text-aurora capitalize">Frontend Engineer</span>
+          Feedback History —{" "}
+          <span className="text-aurora capitalize">{interview.role || "Frontend"} Engineer</span>
         </h1>
-
-        {/* Meta strip */}
-        <div className="mt-6 inline-flex flex-wrap items-center justify-center gap-3 px-4 py-2 rounded-full glass">
-          <span className="inline-flex items-center gap-2 text-sm">
-            <Star className="h-4 w-4 fill-accent text-accent" />
-            Overall Impression:
-            <span className="font-semibold text-gradient">{overall}</span>
-            <span className="text-muted-foreground">/100</span>
-          </span>
-          <span className="h-4 w-px bg-white/10" />
-          <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-            <Calendar className="h-4 w-4" /> {createdAt}
-          </span>
-        </div>
+        <p className="text-muted-foreground mt-4">
+          You have taken this interview <strong className="text-white">{feedbacks.length}</strong> times.
+        </p>
       </div>
 
-      {/* Hero score + final assessment */}
-      <div className="grid lg:grid-cols-[360px_1fr] gap-6">
-        <div className="rounded-3xl glass-strong p-8 relative overflow-hidden">
-          <div className="absolute -top-20 -right-20 h-60 w-60 rounded-full bg-aurora opacity-20 blur-3xl" />
-          <div className="relative flex flex-col items-center">
-            <Ring value={overall} />
-            <div className="mt-5 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-success-100/15 text-success-100 text-xs font-medium">
-              <TrendingUp className="h-3.5 w-3.5" /> +6 vs last session
-            </div>
-            <p className="text-center text-sm text-muted-foreground mt-5">
-              You're in the <span className="text-foreground font-medium">top 14%</span> of candidates this week.
-            </p>
-            <div className="mt-6 flex gap-2 w-full">
-              <button className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-full glass hover:ring-glow transition text-sm text-white">
-                <Share2 className="h-4 w-4" /> Share
-              </button>
-              <button className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-full glass hover:ring-glow transition text-sm text-white">
-                <Download className="h-4 w-4" /> Export
-              </button>
-            </div>
+      <div className="mt-12 space-y-4">
+        {feedbacks.length === 0 ? (
+          <div className="p-12 text-center rounded-3xl glass text-muted-foreground">
+            No feedback found for this interview yet.
           </div>
-        </div>
+        ) : (
+          feedbacks.map((fb, index) => {
+            const attemptNumber = feedbacks.length - index;
+            const isOpen = openAccordionId === fb.id;
+            const createdDate = fb.createdAt ? new Date(fb.createdAt).toLocaleString() : "Unknown date";
+            const score = fb.score || 0;
+            const summaryText = fb.summary || "No summary provided.";
 
-        <div className="rounded-3xl glass p-8 relative overflow-hidden">
-          <div className="absolute -bottom-24 -right-24 h-60 w-60 rounded-full bg-accent/15 blur-3xl" />
-          <div className="relative">
-            <div className="inline-flex items-center gap-2 text-xs text-aurora">
-              <Sparkles className="h-3.5 w-3.5" /> Final assessment
-            </div>
-            <h2 className="text-xl font-semibold mt-2 text-white">The bottom line</h2>
-            <p className="mt-4 text-muted-foreground leading-relaxed">{finalAssessment}</p>
+            return (
+              <div key={fb.id} className="rounded-3xl glass-strong border border-white/5 overflow-hidden transition-all duration-300">
+                {/* Accordion Header */}
+                <button 
+                  onClick={() => setOpenAccordionId(isOpen ? null : fb.id)}
+                  className="w-full p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-white/5 transition-colors text-left"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="h-12 w-12 rounded-xl bg-aurora/20 flex items-center justify-center text-aurora font-bold shrink-0">
+                      #{attemptNumber}
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-white">Feedback {attemptNumber}</h3>
+                      <p className="text-sm text-muted-foreground mt-0.5 flex items-center gap-1.5">
+                        <Calendar className="h-3.5 w-3.5" /> {createdDate}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-between md:justify-end gap-6 w-full md:w-auto">
+                    <div className="flex items-center gap-2">
+                      <Star className={`h-4 w-4 ${score >= 75 ? 'fill-emerald-400 text-emerald-400' : 'fill-aurora text-aurora'}`} />
+                      <span className="font-semibold text-white">{score}</span>
+                      <span className="text-xs text-muted-foreground">/100</span>
+                    </div>
+                    {isOpen ? <ChevronUp className="h-5 w-5 text-muted-foreground" /> : <ChevronDown className="h-5 w-5 text-muted-foreground" />}
+                  </div>
+                </button>
 
-            <div className="mt-6 grid grid-cols-3 gap-3">
-              {[
-                { v: "32m", l: "Duration" },
-                { v: "6", l: "Questions" },
-                { v: "94%", l: "Talk clarity" },
-              ].map((s) => (
-                <div key={s.l} className="rounded-2xl bg-secondary/50 border border-white/5 p-4 text-center">
-                  <div className="text-xl font-semibold text-gradient">{s.v}</div>
-                  <div className="text-[11px] text-muted-foreground mt-1 uppercase tracking-widest">{s.l}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
+                {/* Accordion Body */}
+                {isOpen && (
+                  <div className="p-6 md:p-8 border-t border-white/5 bg-background/50 animate-fadeIn">
+                    <div className="grid lg:grid-cols-[240px_1fr] gap-8">
+                      <div className="flex flex-col items-center">
+                        <Ring value={score} />
+                        <div className="mt-6 flex flex-col gap-2 w-full">
+                          <button className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl glass hover:ring-glow transition text-sm text-white">
+                            <Share2 className="h-4 w-4" /> Share
+                          </button>
+                        </div>
+                      </div>
 
-      {/* Breakdown */}
-      <div className="rounded-3xl glass p-7">
-        <div className="flex items-end justify-between">
-          <div>
-            <h2 className="text-xl font-semibold text-white">Breakdown of the Interview</h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              How you scored across the dimensions interviewers care about.
-            </p>
-          </div>
-        </div>
-        <div className="mt-6 grid sm:grid-cols-2 gap-x-8 gap-y-6">
-          {categoryScores.map((c, i) => (
-            <div key={c.name}>
-              <div className="flex justify-between items-baseline">
-                <span className="text-sm font-medium text-white">
-                  <span className="text-muted-foreground mr-2">{i + 1}.</span>
-                  {c.name}
-                </span>
-                <span className="text-sm text-gradient font-semibold">{c.score}/100</span>
+                      <div className="space-y-6">
+                        <div>
+                          <div className="inline-flex items-center gap-2 text-xs text-aurora mb-2">
+                            <Sparkles className="h-3.5 w-3.5" /> Assessment
+                          </div>
+                          <h2 className="text-xl font-semibold text-white">The bottom line</h2>
+                          <p className="mt-3 text-muted-foreground leading-relaxed whitespace-pre-wrap">{summaryText}</p>
+                        </div>
+
+                        {fb.transcript && (
+                          <div className="pt-6 border-t border-white/5">
+                            <div className="flex items-center gap-2 mb-3">
+                              <MessageSquare className="h-4 w-4 text-aurora" />
+                              <h3 className="font-semibold text-white">Transcript</h3>
+                            </div>
+                            <div className="p-4 rounded-xl bg-secondary/30 border border-white/5 text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed max-h-60 overflow-y-auto">
+                              {fb.transcript}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
-              <div className="mt-2 h-2 rounded-full bg-secondary overflow-hidden">
-                <div
-                  className="h-full bg-aurora rounded-full"
-                  style={{ width: `${c.score}%`, transition: "width 1s var(--transition-smooth)" }}
-                />
-              </div>
-              <p className="text-xs text-muted-foreground mt-2 leading-relaxed">{c.comment}</p>
-            </div>
-          ))}
-        </div>
+            );
+          })
+        )}
       </div>
 
-      {/* Strengths + improvements */}
-      <div className="grid md:grid-cols-2 gap-6">
-        <div className="rounded-3xl glass p-7">
-          <div className="flex items-center gap-2">
-            <span className="h-9 w-9 rounded-xl bg-success-100/15 flex items-center justify-center">
-              <CheckCircle2 className="h-4 w-4 text-success-100" />
-            </span>
-            <h3 className="font-semibold text-lg text-white">Strengths</h3>
-          </div>
-          <ul className="mt-5 space-y-3">
-            {strengths.map((s, i) => (
-              <li key={i} className="flex gap-3 text-sm">
-                <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-success-100 shrink-0" />
-                <span className="text-muted-foreground">{s}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div className="rounded-3xl glass p-7">
-          <div className="flex items-center gap-2">
-            <span className="h-9 w-9 rounded-xl bg-warning/15 flex items-center justify-center">
-              <AlertCircle className="h-4 w-4 text-warning" />
-            </span>
-            <h3 className="font-semibold text-lg text-white">Areas for Improvement</h3>
-          </div>
-          <ul className="mt-5 space-y-3">
-            {improvements.map((s, i) => (
-              <li key={i} className="flex gap-3 text-sm">
-                <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-warning shrink-0" />
-                <span className="text-muted-foreground">{s}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
-
-      {/* CTA */}
-      <div className="rounded-3xl glass-strong p-8 md:p-10 relative overflow-hidden">
-        <div className="absolute -bottom-20 -right-10 h-60 w-60 rounded-full bg-accent opacity-20 blur-3xl" />
-        <div className="relative flex flex-col md:flex-row md:items-center gap-6 justify-between">
-          <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 text-xs text-aurora">
-              <Sparkles className="h-3.5 w-3.5" /> AI Coach
-            </div>
-            <h3 className="text-2xl font-semibold mt-2 text-white">
-              You're one round of focused practice away from offer-ready.
-            </h3>
-            <p className="text-muted-foreground mt-2">
-              Sharpen quantitative tradeoffs next — that's the gap between strong-hire and hire.
-            </p>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-3">
-            <Link
-              href="/"
-              className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-full glass hover:ring-glow transition text-white self-start"
-            >
-              Back to dashboard
-            </Link>
-            <Link
-              href="/interview"
-              className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-aurora text-primary-foreground font-medium shadow-[var(--shadow-glow)] hover:scale-[1.02] transition-transform self-start"
-            >
-              Practice again <ArrowRight className="h-4 w-4" />
-            </Link>
-          </div>
-        </div>
+      <div className="flex justify-center mt-12">
+        <Link
+          href={`/interview/new?id=${id}`}
+          className="inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-full bg-aurora text-primary-foreground font-semibold shadow-[var(--shadow-glow)] hover:scale-[1.02] transition-transform"
+        >
+          Take Interview Again <ArrowRight className="h-4 w-4" />
+        </Link>
       </div>
     </div>
   );
 };
-
-export default Feedback;
+export default function FeedbackPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-aurora">Loading...</div>}>
+      <FeedbackContent />
+    </Suspense>
+  );
+}

@@ -10,6 +10,7 @@ import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAnalytics, isSupported } from "firebase/analytics";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -30,6 +31,9 @@ const auth = getAuth(app);
 // Initialize the Firestore DB natively to access public/client documents
 const db = getFirestore(app);
 
+// Initialize Firebase Storage
+const storage = getStorage(app);
+
 /**
  * Initialize Analytics conditionally to avoid Next.js Server-Side errors.
  * Analytics relies on the browser's `window` object, so wrapping it in a `typeof window !== "undefined"`
@@ -44,4 +48,4 @@ if (typeof window !== "undefined") {
   });
 }
 
-export { app, analytics, auth, db };
+export { app, analytics, auth, db, storage };

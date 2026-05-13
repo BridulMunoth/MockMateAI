@@ -230,3 +230,47 @@ export async function getRecentUsers(limitCount: number = 4) {
         return [];
     }
 }
+
+/**
+ * ==========================================
+ * FETCH USER'S PRIVATE INTERVIEWS
+ * ==========================================
+ * Retrieves the current user's past interviews from Firestore.
+ */
+export async function getInterviewsByUserId(userId: string) {
+    try {
+        const interviewsSnapshot = await adminDb.collection("interviews")
+            .where("userId", "==", userId)
+            .get();
+
+        const interviews = interviewsSnapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data()
+        })).sort((a: any, b: any) => {
+            const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            return dateB - dateA;
+        });
+
+        return interviews;
+    } catch (error) {
+        console.error("Failed to fetch user interviews:", error);
+        return [];
+    }
+}
+
+/**
+ * ==========================================
+ * UPDATE USER PROFILE
+ * ==========================================
+ * Updates the current user's profile data in Firestore.
+ */
+export async function updateProfileData(userId: string, data: { name?: string; photoURL?: string }) {
+    try {
+        await adminDb.collection("users").doc(userId).set(data, { merge: true });
+        return { success: true, message: "Profile updated successfully." };
+    } catch (error) {
+        console.error("Failed to update profile:", error);
+        return { success: false, message: "Failed to update profile." };
+    }
+}

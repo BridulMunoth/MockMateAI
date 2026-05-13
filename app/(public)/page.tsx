@@ -1,7 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, Sparkles, Mic, Zap, BarChart3, CheckCircle2 } from "lucide-react";
+import { ArrowRight, Sparkles, Mic, Zap, BarChart3 } from "lucide-react";
 import { getRecentUsers, isAuthenticated } from "@/lib/actions/auth.action";
+import HeroGraphic from "@/components/HeroGraphic";
 
 export default async function LandingPage() {
   const recentUsers = await getRecentUsers(4);
@@ -11,7 +12,9 @@ export default async function LandingPage() {
     ? recentUsers 
     : ['/avatars/dog.png', '/avatars/panda.png', '/avatars/robot.png', '/avatars/batman.png'];
   return (
-    <main className="flex flex-col min-h-screen overflow-hidden">
+    <main className="flex flex-col min-h-screen overflow-hidden bg-[#030014]">
+      {/* Premium Background Grid */}
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none" />
       
       {/* Hero Section */}
       <section className="relative pt-20 pb-32 md:pt-32 md:pb-40 px-4">
@@ -29,8 +32,9 @@ export default async function LandingPage() {
                 <span>The Future of Interview Prep</span>
               </div>
               
-              <h1 className="text-5xl md:text-7xl font-bold tracking-tight leading-[1.1]">
-                Master your next interview with <span className="text-transparent bg-clip-text bg-gradient-to-r from-aurora via-accent to-pink-500">AI precision</span>
+              <h1 className="text-6xl md:text-8xl font-extrabold tracking-tighter leading-[1.05]">
+                Master your next interview with <br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 via-fuchsia-500 to-pink-500 animate-pulse-glow drop-shadow-sm">AI precision</span>
               </h1>
               
               <p className="text-lg md:text-xl text-muted-foreground leading-relaxed max-w-2xl">
@@ -72,51 +76,7 @@ export default async function LandingPage() {
             </div>
             
             {/* Hero 3D Graphic */}
-            <div className="flex-1 relative flex justify-center z-10 perspective-1000">
-              <div className="relative w-full max-w-lg aspect-square">
-                {/* Orbital rings */}
-                <div className="absolute inset-0 border border-white/10 rounded-full animate-[spin_20s_linear_infinite] [transform:rotateX(60deg)]" />
-                <div className="absolute inset-0 border border-aurora/30 rounded-full animate-[spin_15s_linear_infinite_reverse] [transform:rotateX(60deg)_rotateY(30deg)]" />
-                
-                {/* Floating Robot */}
-                <Image
-                  src="/robot.png"
-                  alt="AI Interviewer"
-                  width={500}
-                  height={500}
-                  className="absolute inset-0 w-full h-full object-contain animate-float drop-shadow-[0_20px_50px_rgba(139,92,246,0.3)] z-20"
-                />
-                
-                {/* Floating UI Elements */}
-                <div className="absolute top-1/4 -right-8 glass-strong p-4 rounded-2xl border border-white/10 animate-float shadow-xl z-30" style={{ animationDelay: '1s' }}>
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">
-                      <CheckCircle2 className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-white">Great answer!</p>
-                      <p className="text-xs text-emerald-400">+15 confidence score</p>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="absolute bottom-1/4 -left-8 glass-strong p-4 rounded-2xl border border-white/10 animate-float shadow-xl z-30" style={{ animationDelay: '2s' }}>
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-aurora/20 flex items-center justify-center text-aurora">
-                      <Mic className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1 h-3">
-                        {[1, 2, 3, 4, 5].map(i => (
-                          <div key={i} className="w-1 bg-aurora rounded-full animate-pulse" style={{ height: `${Math.random() * 100}%`, animationDelay: `${i * 0.1}s` }} />
-                        ))}
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-1">Listening...</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <HeroGraphic />
             
           </div>
         </div>
@@ -136,9 +96,9 @@ export default async function LandingPage() {
           
           <div className="grid md:grid-cols-3 gap-6">
             {/* Feature 1 */}
-            <div className="glass-strong p-8 rounded-3xl border border-white/10 hover:border-aurora/50 transition-colors group relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-aurora/10 rounded-full blur-[50px] group-hover:bg-aurora/20 transition-colors" />
-              <div className="w-14 h-14 rounded-2xl bg-aurora/10 flex items-center justify-center text-aurora mb-6 border border-aurora/20">
+            <div className="glass-strong p-8 rounded-3xl border border-white/10 hover:border-violet-500/50 transition-colors group relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-violet-500/10 rounded-full blur-[50px] group-hover:bg-violet-500/20 transition-colors" />
+              <div className="w-14 h-14 rounded-2xl bg-violet-500/10 flex items-center justify-center text-violet-400 mb-6 border border-violet-500/20">
                 <Mic className="h-7 w-7" />
               </div>
               <h3 className="text-xl font-semibold text-white mb-3">Voice-First Experience</h3>
@@ -148,9 +108,9 @@ export default async function LandingPage() {
             </div>
             
             {/* Feature 2 */}
-            <div className="glass-strong p-8 rounded-3xl border border-white/10 hover:border-pink-500/50 transition-colors group relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-pink-500/10 rounded-full blur-[50px] group-hover:bg-pink-500/20 transition-colors" />
-              <div className="w-14 h-14 rounded-2xl bg-pink-500/10 flex items-center justify-center text-pink-400 mb-6 border border-pink-500/20">
+            <div className="glass-strong p-8 rounded-3xl border border-white/10 hover:border-fuchsia-500/50 transition-colors group relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-fuchsia-500/10 rounded-full blur-[50px] group-hover:bg-fuchsia-500/20 transition-colors" />
+              <div className="w-14 h-14 rounded-2xl bg-fuchsia-500/10 flex items-center justify-center text-fuchsia-400 mb-6 border border-fuchsia-500/20">
                 <BarChart3 className="h-7 w-7" />
               </div>
               <h3 className="text-xl font-semibold text-white mb-3">Forensic Feedback</h3>
@@ -176,9 +136,9 @@ export default async function LandingPage() {
 
       {/* CTA Section */}
       <section className="py-32 relative">
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-aurora/5 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#030014] via-aurora/5 to-transparent" />
         <div className="container mx-auto max-w-4xl px-4 relative z-10 text-center space-y-8">
-          <h2 className="text-4xl md:text-6xl font-bold tracking-tight text-white">
+          <h2 className="text-5xl md:text-7xl font-extrabold tracking-tighter text-white drop-shadow-lg">
             Ready to ace your next interview?
           </h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">

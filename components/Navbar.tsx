@@ -3,16 +3,24 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
+import { useEffect, useState } from "react";
+import { getCurrentUser } from "@/lib/actions/auth.action";
+import UserDropdown from "./UserDropdown";
 
 const links = [
   { to: "/", label: "Home" },
   { to: "/dashboard", label: "Dashboard" },
-  { to: "/interview/new", label: "Interview" },
-  { to: "/feedback", label: "Feedback" },
+  { to: "/aboutus", label: "About Us" },
+  { to: "/contactus", label: "Contact Us" },
 ];
 
 const Navbar = () => {
   const pathname = usePathname();
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    getCurrentUser().then(setUser);
+  }, []);
 
   return (
     <header className="sticky top-0 z-50">
@@ -51,13 +59,17 @@ const Navbar = () => {
           })}
         </div>
 
-        <Link
-          href="/interview"
-          className="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium glass-strong hover:ring-glow transition-all"
-        >
-          Start free
-          <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse-glow" />
-        </Link>
+        {user ? (
+          <UserDropdown user={user} />
+        ) : (
+          <Link
+            href="/sign-in"
+            className="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium glass-strong hover:ring-glow transition-all"
+          >
+            Sign in
+            <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse-glow" />
+          </Link>
+        )}
       </nav>
     </header>
   );

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, Suspense } from "react";
-import { useEffect } from "react";
+import { useState, Suspense, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { getCurrentUser } from "@/lib/actions/auth.action";
+import { getInterviewById } from "@/lib/actions/interview.action";
 
 import ChoiceModal from "@/components/create-interview/ChoiceModal";
 import { InterviewFormWizard } from "@/components/create-interview/InterviewFormWizard";
@@ -19,11 +20,23 @@ type Screen =
   | "interview";
 
 export default function NewInterviewPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-aurora">Preparing interview...</div>}>
+      <NewInterviewContent />
+    </Suspense>
+  );
+}
+
+function NewInterviewContent() {
+  const searchParams = useSearchParams();
+  const id = searchParams.get("id");
+
   const [screen, setScreen] = useState<Screen>("choice");
   const [role, setRole] = useState("your");
   const [userName, setUserName] = useState("there");
   const [userId, setUserId] = useState<string | null>(null);
   const [formData, setFormData] = useState<any>(null);
+  const [interviewId, setInterviewId] = useState<string>(id || "");
 
   useEffect(() => {
     getCurrentUser().then((u) => {
@@ -32,7 +45,22 @@ export default function NewInterviewPage() {
         setUserId(u.uid);
       }
     });
-  }, []);
+
+    if (id) {
+      getInterviewById(id).then((data) => {
+        if (data) {
+          setRole(data.role || "your");
+          setInterviewId(data.id);
+          setScreen("breathing");
+        } else {
+          // If ID is invalid or a mock ID, go back to choice
+          setScreen("choice");
+        }
+      });
+    } else {
+      setScreen("choice");
+    }
+  }, [id]);
 
   const handleFormSubmit = (data: any) => {
     setRole(data?.role || "your");
@@ -44,13 +72,14 @@ export default function NewInterviewPage() {
     setScreen("generating");
   };
 
-  const handleReadyToJoin = () => {
+  const handleReadyToJoin = (id: string) => {
+    setInterviewId(id);
     setScreen("breathing");
   };
 
   const handleBreathingDone = () => {
     // Navigate to the live interview page
-    window.location.href = "/interview";
+    window.location.href = `/interview${interviewId ? `?id=${interviewId}` : ""}`;
   };
 
   return (
