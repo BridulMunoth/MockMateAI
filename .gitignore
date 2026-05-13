@@ -40,10 +40,3 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# User requested ignore rules
-/app/favicon.ico
-# Specifically ignore unused Next.js boilerplate from public, but allow crucial assets like Logos
-/public/*
-!/public/logo.svg
-!/public/AIMockMateLogo.jpeg
-!/public/avatars/
