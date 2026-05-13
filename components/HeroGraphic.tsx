@@ -71,7 +71,7 @@ export default function HeroGraphic() {
           className="absolute inset-0 rounded-full border border-violet-400/15"
           style={{
             transform: "translateZ(-120px) rotateX(72deg)",
-            animation: "spin3d 22s linear infinite",
+            animation: "spin 22s linear infinite",
           }}
         />
         {/* Second orbital ring */}
@@ -79,7 +79,7 @@ export default function HeroGraphic() {
           className="absolute inset-[10%] rounded-full border border-fuchsia-400/20"
           style={{
             transform: "translateZ(-60px) rotateX(55deg) rotateZ(30deg)",
-            animation: "spin3d 14s linear infinite reverse",
+            animation: "spin 14s linear infinite reverse",
           }}
         />
         {/* Inner shimmer ring */}
@@ -87,7 +87,7 @@ export default function HeroGraphic() {
           className="absolute inset-[20%] rounded-full border border-cyan-400/10"
           style={{
             transform: "translateZ(-20px) rotateX(40deg) rotateZ(-20deg)",
-            animation: "spin3d 9s linear infinite",
+            animation: "spin 9s linear infinite",
           }}
         />
 
@@ -145,7 +145,7 @@ export default function HeroGraphic() {
 
         {/* ── Floating UI Cards ── */}
 
-        {/* TOP RIGHT: Score badge — floats well forward */}
+        {/* TOP RIGHT: Score badge */}
         <div
           className="absolute top-[12%] -right-8 z-40"
           style={{
@@ -167,13 +167,13 @@ export default function HeroGraphic() {
           </div>
         </div>
 
-        {/* BOTTOM LEFT: Listening indicator — further forward still */}
+        {/* BOTTOM LEFT: Listening indicator */}
         <div
           className="absolute bottom-[14%] -left-8 z-40"
           style={{
             transform: "translateZ(130px)",
             transformStyle: "preserve-3d",
-            animation: "floatY 6s ease-in-out infinite 1.5s",
+            animation: "floatY2 6s ease-in-out infinite 1.5s",
           }}
         >
           <div className="bg-[#0e0f1a]/90 backdrop-blur-xl border border-violet-500/30 rounded-2xl px-4 py-3 shadow-[0_0_30px_rgba(139,92,246,0.3)]">
@@ -204,13 +204,13 @@ export default function HeroGraphic() {
           </div>
         </div>
 
-        {/* TOP LEFT: Rating — subtle, mid-depth */}
+        {/* TOP LEFT: Rating */}
         <div
           className="absolute top-[30%] -left-6 z-40"
           style={{
             transform: "translateZ(70px)",
             transformStyle: "preserve-3d",
-            animation: "floatY 7s ease-in-out infinite 0.8s",
+            animation: "floatY3 7s ease-in-out infinite 0.8s",
           }}
         >
           <div className="bg-[#0e0f1a]/90 backdrop-blur-xl border border-amber-500/20 rounded-xl px-3 py-2 shadow-[0_0_20px_rgba(245,158,11,0.15)]">
@@ -222,17 +222,6 @@ export default function HeroGraphic() {
           </div>
         </div>
       </div>
-
-      <style jsx global>{`
-        @keyframes spin3d {
-          0% { transform: var(--start-transform, translateZ(-120px) rotateX(72deg)) rotateZ(0deg); }
-          100% { transform: var(--start-transform, translateZ(-120px) rotateX(72deg)) rotateZ(360deg); }
-        }
-        @keyframes floatY {
-          0%, 100% { transform: translateZ(var(--tz, 100px)) translateY(0px); }
-          50% { transform: translateZ(var(--tz, 100px)) translateY(-10px); }
-        }
-      `}</style>
     </div>
   );
 }

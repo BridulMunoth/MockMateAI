@@ -296,17 +296,6 @@ export default async function LandingPage() {
         style={{ borderColor: "rgba(255,255,255,0.05)" }}>
         <p>© {new Date().getFullYear()} MockMateAI. All rights reserved.</p>
       </footer>
-
-      <style jsx global>{`
-        @keyframes fadeSlideUp {
-          from { opacity: 0; transform: translateY(24px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes shimmerLine {
-          0% { background-position: -200% center; }
-          100% { background-position: 200% center; }
-        }
-      `}</style>
     </main>
   );
 }

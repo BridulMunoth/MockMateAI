@@ -480,3 +480,45 @@
   color: #a855f7 !important;
   filter: drop-shadow(0 0 8px rgba(168, 85, 247, 0.8)) !important;
 }
+
+/* ==========================================
+ * LANDING PAGE KEYFRAMES
+ * ========================================== */
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shimmerLine {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+
+/* ==========================================
+ * HERO GRAPHIC 3D KEYFRAMES
+ * ========================================== */
+@keyframes spin3d {
+  0%   { transform: inherit rotateZ(0deg); }
+  100% { transform: inherit rotateZ(360deg); }
+}
+
+@keyframes floatY {
+  0%, 100% { transform: translateZ(100px) translateY(0px); }
+  50%       { transform: translateZ(100px) translateY(-10px); }
+}
+
+@keyframes floatY2 {
+  0%, 100% { transform: translateZ(130px) translateY(0px); }
+  50%       { transform: translateZ(130px) translateY(-10px); }
+}
+
+@keyframes floatY3 {
+  0%, 100% { transform: translateZ(70px) translateY(0px); }
+  50%       { transform: translateZ(70px) translateY(-10px); }
+}
+
+/* Orbital ring spin for HeroGraphic */
+@keyframes spin {
+  from { transform: rotateZ(0deg); }
+  to   { transform: rotateZ(360deg); }
+}
