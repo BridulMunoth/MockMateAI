@@ -191,6 +191,8 @@ export const getCurrentUser = cache(async () => {
             name: data.name || "User",
             email: data.email,
             photoURL: data.photoURL || null,
+            plan: data.plan || "free",
+            planExpiresAt: data.planExpiresAt || null,
         };
     } catch (error) {
         return null;

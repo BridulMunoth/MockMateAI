@@ -57,7 +57,7 @@ export async function POST(req: Request) {
 
                     // 3. Call Gemini
                     const { object } = await generateObject({
-                        model: google("gemini-2.5-flash-lite"),
+                        model: google("gemini-1.5-flash"),
                         schema: z.object({
                             overallSummary: z.string().describe("Overall Performance Summary: A comprehensive summary of how the candidate did."),
                             technicalScore: z.number().min(0).max(100).describe("Technical Skills Score (0-100)"),

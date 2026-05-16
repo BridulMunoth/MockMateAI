@@ -20,6 +20,9 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "Interview not found" }, { status: 404 });
         }
 
+        const interviewData = doc.data();
+        const userId = interviewData?.userId;
+
         const { FieldValue } = require("firebase-admin/firestore");
 
         await docRef.update({
@@ -34,7 +37,21 @@ export async function POST(req: Request) {
             // Quick-access flat fields for dashboard display
             lastSessionAt:       endedAt          || new Date().toISOString(),
             lastDurationSeconds: durationSeconds  || 0,
+            attemptCount:        FieldValue.increment(1), // ✅ Ensure card shows as 'Taken'
         });
+
+        // ── ⚡ REVALIDATE CACHE ──────────────────────────────────────────────
+        // Bust the server-side cache for this specific user so the dashboard 
+        // updates 'Not taken' -> 'Completed' immediately.
+        if (userId) {
+            try {
+                const { revalidateTag } = await import("next/cache");
+                revalidateTag(`interviews-${userId}`);
+                console.log(`[Session] Cache busted for user: ${userId}`);
+            } catch (err) {
+                console.warn("[Session] Cache revalidation failed (expected in some environments)");
+            }
+        }
 
         return NextResponse.json({ success: true });
     } catch (error) {

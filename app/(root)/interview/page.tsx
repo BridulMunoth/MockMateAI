@@ -4,7 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Mic, MicOff, PhoneOff, Bot, User, Phone } from "lucide-react";
+import { Mic, MicOff, PhoneOff, Bot, User, Phone, Sparkles } from "lucide-react";
 import { getCurrentUser } from "@/lib/actions/auth.action";
 import { getInterviewById } from "@/lib/actions/interview.action";
 import { verifyAssistant } from "@/lib/actions/vapi.action";
@@ -118,10 +118,11 @@ const InterviewContent = () => {
 
       // Determine if this ended because the free tier limit was hit
       const isFreeData = interviewData && !interviewData.isPremium;
-      const freeDurationCap = 15 * 60; // 15 min in seconds
-      const freeQuestionCap = 5;
-      const hitTimeLimit = secondsRef.current >= freeDurationCap - 10; // within 10s of cap
-      const hitQuestionLimit = questionCountRef.current >= freeQuestionCap;
+      const durationCap = (interviewData?.duration || 15) * 60; 
+      const questionCap = (interviewData?.questionCount || 5);
+      
+      const hitTimeLimit = secondsRef.current >= durationCap - 5; 
+      const hitQuestionLimit = questionCountRef.current >= questionCap;
 
       if (isFreeData && (hitTimeLimit || hitQuestionLimit)) {
         setCallEndReason('limit');
@@ -130,7 +131,8 @@ const InterviewContent = () => {
       }
 
       // Save session stats to the interview document
-      if (id && id !== 'unknown') {
+      // ✅ Only save if the call actually started and lasted more than 5 seconds
+      if (id && id !== 'unknown' && startedAtRef.current && secondsRef.current > 5) {
         fetch('/api/vapi/session', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -281,14 +283,14 @@ const InterviewContent = () => {
       {/* Interview header — cover, role, tech stack, type */}
       <div className="rounded-3xl glass-strong p-6 md:p-8 flex flex-col md:flex-row md:items-center md:justify-between gap-5">
         <div className="flex flex-col sm:flex-row sm:items-center gap-5">
-          <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-700 ring-1 ring-white/10 flex items-center justify-center text-2xl shadow-[var(--shadow-soft)] overflow-hidden">
+          <div className="h-14 w-14 flex items-center justify-center overflow-hidden">
             {interviewData?.companyName ? (
               <CompanyLogo
                 name={interviewData.companyName}
-                fallback={interviewData.companyName.substring(0, 2).toUpperCase()}
+                fallbackNode={<span>{interviewData.companyName.substring(0, 1).toUpperCase()}</span>}
               />
             ) : (
-              <span>🪐</span>
+              <span className="text-2xl">🪐</span>
             )}
           </div>
           <div>
@@ -306,7 +308,7 @@ const InterviewContent = () => {
                   <div
                     key={index}
                     title={t}
-                    className="relative group/tech z-10 hover:z-20 h-6 w-6 flex items-center justify-center transition-all duration-200 hover:scale-110"
+                    className="relative group/tech z-10 hover:z-20 h-8 w-8 rounded-full bg-secondary ring-2 ring-card flex items-center justify-center overflow-hidden p-1.5 transition-all duration-200 hover:ring-aurora/60 hover:scale-110 shadow-[var(--shadow-soft)]"
                   >
                     <img 
                       src={`https://cdn.simpleicons.org/${iconSlug}`} 
@@ -314,7 +316,7 @@ const InterviewContent = () => {
                       className="h-full w-full object-contain"
                       onError={(e) => {
                         e.currentTarget.style.display = 'none';
-                        e.currentTarget.parentElement!.innerHTML = `<span class="text-[10px] font-bold text-white bg-secondary px-1.5 py-0.5 rounded-full">${t.substring(0, 1)}</span>`;
+                        e.currentTarget.parentElement!.innerHTML = `<span class="text-[10px] font-bold text-white">${t.substring(0, 1)}</span>`;
                       }}
                     />
                   </div>
@@ -369,9 +371,17 @@ const InterviewContent = () => {
               <div className="relative">
                 <div className="relative h-28 w-28 rounded-full bg-secondary flex items-center justify-center ring-1 ring-white/10 overflow-hidden">
                   {user?.photoURL ? (
-                    <img src={user.photoURL} alt="Your Avatar" className="h-full w-full object-cover" />
+                    <Image 
+                      src={user.photoURL} 
+                      alt="Your Avatar" 
+                      fill 
+                      sizes="112px"
+                      className="object-cover" 
+                    />
                   ) : (
-                    <User className="h-12 w-12 text-muted-foreground" />
+                    <div className="h-full w-full flex items-center justify-center bg-aurora/20 text-aurora text-3xl font-semibold">
+                      {user?.name?.charAt(0).toUpperCase() || <User className="h-12 w-12 text-muted-foreground" />}
+                    </div>
                   )}
                 </div>
               </div>
@@ -508,58 +518,75 @@ const InterviewContent = () => {
               </>
             )}
           </div>
+          {callStatus === 'INACTIVE' && (
+            <p className="text-[10px] text-muted-foreground animate-pulse">
+              🎧 Tip: Use earphones for the best voice experience
+            </p>
+          )}
         </div>
 
-        {/* Sidebar — hidden on mobile, visible on lg+ */}
+        {/* Sidebar — Dynamic Insights */}
         <aside className="hidden lg:flex flex-col gap-4">
-          {callStatus === 'ACTIVE' ? (
-            <>
-              <div className="p-5 rounded-2xl glass">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-white">Live signals</h3>
-                </div>
-                <div className="mt-4 space-y-3">
-                  {[
-                    { label: "Clarity", v: 82 },
-                    { label: "Structure", v: 74 },
-                    { label: "Depth", v: 68 },
-                    { label: "Pace", v: 91 },
-                  ].map((s) => (
-                    <div key={s.label}>
-                      <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                        <span>{s.label}</span>
-                        <span className="text-foreground">{s.v}</span>
-                      </div>
-                      <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
-                        <div className="h-full bg-aurora rounded-full" style={{ width: `${s.v}%` }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              
-              <div className="p-5 rounded-2xl glass">
-                <h3 className="font-semibold text-white">Hints</h3>
-                <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
-                  <li>· Speak clearly and take your time</li>
-                  <li>· Ask clarifying questions if needed</li>
-                  <li>· Think out loud when solving problems</li>
-                </ul>
-              </div>
-            </>
-          ) : (
-            <div className="p-6 rounded-2xl glass-strong border border-white/5 h-full flex flex-col items-center justify-center text-center space-y-4">
-              <div className="h-12 w-12 rounded-full bg-aurora/10 flex items-center justify-center">
-                <Bot className="h-6 w-6 text-aurora" />
-              </div>
+          <div className="p-5 rounded-2xl glass border border-white/5">
+            <h3 className="font-semibold text-white flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-aurora" />
+              Session Insights
+            </h3>
+            <div className="mt-4 space-y-5">
               <div>
-                <h3 className="font-semibold text-white">Ready when you are</h3>
-                <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
-                  Click the <strong className="text-success-100">Connect</strong> button to begin your interview. Ensure you are in a quiet environment.
-                </p>
+                <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
+                  <span>Interview Progress</span>
+                  <span className="text-foreground">{Math.min(100, Math.round((questionCount / (interviewData?.questionCount || 5)) * 100))}%</span>
+                </div>
+                <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
+                  <div 
+                    className="h-full bg-aurora rounded-full transition-all duration-500" 
+                    style={{ width: `${(questionCount / (interviewData?.questionCount || 5)) * 100}%` }} 
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-white/5 rounded-xl p-3 border border-white/5">
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold">Time</p>
+                  <p className="text-sm font-semibold text-white mt-1">{formatTime(seconds)}</p>
+                </div>
+                <div className="bg-white/5 rounded-xl p-3 border border-white/5">
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold">Questions</p>
+                  <p className="text-sm font-semibold text-white mt-1">{questionCount} / {interviewData?.questionCount || 5}</p>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-white/5">
+                <p className="text-[10px] text-muted-foreground uppercase font-bold mb-2 tracking-widest">Speaking Pace</p>
+                <div className="flex items-center gap-2">
+                  <div className={`h-2 w-2 rounded-full ${isSpeaking ? 'bg-success-100 animate-pulse' : 'bg-secondary'}`} />
+                  <span className="text-xs text-white/80">{isSpeaking ? 'Analyzing flow...' : 'Awaiting response'}</span>
+                </div>
               </div>
             </div>
-          )}
+          </div>
+          
+          <div className="p-5 rounded-2xl glass border border-white/5">
+            <h3 className="font-semibold text-white flex items-center gap-2 text-sm uppercase tracking-wider">
+              <Bot className="h-4 w-4 text-aurora" />
+              Smart Tips
+            </h3>
+            <ul className="mt-4 space-y-3 text-xs text-muted-foreground leading-relaxed">
+              <li className="flex gap-2">
+                <span className="text-aurora">01</span>
+                <span>The system is calibrated for <strong className="text-white">{interviewData?.level || "Internship"}</strong> difficulty.</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="text-aurora">02</span>
+                <span>Focus on your <strong className="text-white">{(interviewData?.techstack?.[0] || "Core")}</strong> skills today.</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="text-aurora">03</span>
+                <span>Maintain a steady pace — the AI listens for structure and clarity.</span>
+              </li>
+            </ul>
+          </div>
         </aside>
       </div>
     </div>

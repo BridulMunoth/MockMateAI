@@ -80,7 +80,7 @@ const FREE_FEATURES = [
 ];
 
 interface Props {
-    user: { uid: string; name: string } | null;
+    user: { uid: string; name: string; plan?: string; planExpiresAt?: string | null } | null;
 }
 
 export default function PricingClient({ user }: Props) {
@@ -88,10 +88,25 @@ export default function PricingClient({ user }: Props) {
     const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
 
+    const currentPlan = user?.plan || "free";
+    const isActive = user?.planExpiresAt && new Date(user.planExpiresAt) > new Date();
+
     const handlePurchase = async (planId: string) => {
         if (!user) {
             router.push("/sign-in?callbackUrl=/pricing");
             return;
+        }
+
+        // Prevent purchasing the same or lower plan if already active
+        const targetPlan = PLANS.find(p => p.id === planId);
+        const activePlan = PLANS.find(p => p.id === currentPlan);
+        
+        if (isActive && activePlan && targetPlan && targetPlan.price <= activePlan.price) {
+            if (planId === currentPlan) {
+                // Allow renewal maybe? Or just skip for now.
+            } else {
+                return; // Prevent downgrade through this UI
+            }
         }
 
         setLoadingPlan(planId);
@@ -170,72 +185,107 @@ export default function PricingClient({ user }: Props) {
                     </span>
                 </h1>
                 <p className="text-muted-foreground text-lg">
-                    Start free. Upgrade when you need more. Cancel anytime.
+                    {isActive ? `You are currently on the ${currentPlan} plan.` : "Start free. Upgrade when you need more. Cancel anytime."}
                 </p>
                 {error && <p className="text-red-400 text-sm font-medium">{error}</p>}
             </div>
 
             <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-                {PLANS.map((plan) => (
-                    <div
-                        key={plan.id}
-                        className={`relative rounded-3xl border ${plan.border} overflow-hidden flex flex-col`}
-                        style={{ background: `linear-gradient(160deg, hsl(250 30% 9%) 0%, hsl(260 25% 11%) 100%)` }}
-                    >
-                        <div className={`absolute top-0 left-0 right-0 h-32 bg-gradient-to-b ${plan.bg} pointer-events-none`} />
-                        {plan.recommended && <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-aurora to-transparent" />}
+                {PLANS.map((plan) => {
+                    const isCurrent = isActive && currentPlan === plan.id;
+                    const activePlanData = PLANS.find(p => p.id === currentPlan);
+                    const isUpgrade = isActive && activePlanData && plan.price > activePlanData.price;
+                    const isDowngrade = isActive && activePlanData && plan.price < activePlanData.price;
+                    const upgradePrice = isUpgrade ? plan.price - (activePlanData?.price || 0) : plan.price;
 
-                        <div className="relative p-7 flex flex-col flex-1">
-                            {plan.recommended && (
-                                <span className="self-start mb-4 px-3 py-0.5 rounded-full text-[11px] font-bold bg-aurora text-white">
-                                    Most Popular
-                                </span>
+                    return (
+                        <div
+                            key={plan.id}
+                            className={`relative rounded-3xl border ${isCurrent ? "border-aurora ring-2 ring-aurora/20" : plan.border} overflow-hidden flex flex-col transition-all duration-300 hover:translate-y-[-4px]`}
+                            style={{ background: `linear-gradient(160deg, hsl(250 30% 9%) 0%, hsl(260 25% 11%) 100%)` }}
+                        >
+                            <div className={`absolute top-0 left-0 right-0 h-32 bg-gradient-to-b ${plan.bg} pointer-events-none`} />
+                            {plan.recommended && <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-aurora to-transparent" />}
+                            
+                            {isCurrent && (
+                                <div className="absolute top-4 right-4 z-20">
+                                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-aurora/20 border border-aurora/30 text-[10px] font-bold text-aurora uppercase tracking-wider">
+                                        <CheckCircle className="h-3 w-3" />
+                                        Active
+                                    </div>
+                                </div>
                             )}
-                            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${plan.gradient} flex items-center justify-center mb-4 shadow-lg`}>
-                                <plan.icon className="h-5 w-5 text-white" />
-                            </div>
-                            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{plan.name}</p>
-                            <div className="mt-2 mb-6 flex items-end gap-1">
-                                <span className="text-4xl font-bold text-white">₹{plan.price}</span>
-                                <span className="text-muted-foreground text-sm mb-1">/{plan.period}</span>
-                            </div>
-                            <ul className="space-y-2.5 mb-8 flex-1">
-                                {plan.features.map((f) => (
-                                    <li key={f} className="flex items-start gap-2.5 text-sm text-white/80">
-                                        <CheckCircle className="h-4 w-4 text-aurora shrink-0 mt-0.5" />
-                                        {f}
-                                    </li>
-                                ))}
-                                {plan.notIncluded.map((f) => (
-                                    <li key={f} className="flex items-start gap-2.5 text-sm text-muted-foreground/50 line-through">
-                                        <CheckCircle className="h-4 w-4 text-white/10 shrink-0 mt-0.5" />
-                                        {f}
-                                    </li>
-                                ))}
-                            </ul>
 
-                            <button
-                                onClick={() => handlePurchase(plan.id)}
-                                disabled={loadingPlan === plan.id}
-                                className={`w-full py-3 rounded-2xl text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
-                                    plan.id === "starter"
-                                        ? "bg-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.4)] hover:bg-blue-700 hover:scale-[1.02]"
-                                        : plan.id === "elite"
-                                        ? "bg-orange-600 text-white shadow-[0_0_20px_rgba(234,88,12,0.4)] hover:bg-orange-700 hover:scale-[1.02]"
-                                        : plan.recommended
-                                        ? "bg-aurora text-white shadow-[var(--shadow-glow)] hover:scale-[1.02]"
-                                        : "border border-white/10 bg-white/5 text-white hover:bg-white/10"
-                                } disabled:opacity-50`}
-                            >
-                                {loadingPlan === plan.id ? (
-                                    <span className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                ) : (
-                                    <>{plan.cta} <ArrowRight className="h-4 w-4" /></>
+                            <div className="relative p-7 flex flex-col flex-1">
+                                {plan.recommended && !isCurrent && (
+                                    <span className="self-start mb-4 px-3 py-0.5 rounded-full text-[11px] font-bold bg-aurora text-white">
+                                        Most Popular
+                                    </span>
                                 )}
-                            </button>
+                                <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${plan.gradient} flex items-center justify-center mb-4 shadow-lg`}>
+                                    <plan.icon className="h-5 w-5 text-white" />
+                                </div>
+                                <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{plan.name}</p>
+                                <div className="mt-2 mb-6 flex items-end gap-1">
+                                    <div className="flex flex-col">
+                                        {isUpgrade && (
+                                            <span className="text-xs text-muted-foreground line-through opacity-50">₹{plan.price}</span>
+                                        )}
+                                        <span className="text-4xl font-bold text-white">₹{isUpgrade ? upgradePrice : plan.price}</span>
+                                    </div>
+                                    <span className="text-muted-foreground text-sm mb-1">/{plan.period}</span>
+                                    {isUpgrade && (
+                                        <span className="text-[10px] font-bold text-emerald-400 ml-1 mb-1.5">Upgrade Price</span>
+                                    )}
+                                </div>
+                                <ul className="space-y-2.5 mb-8 flex-1">
+                                    {plan.features.map((f) => (
+                                        <li key={f} className="flex items-start gap-2.5 text-sm text-white/80">
+                                            <CheckCircle className="h-4 w-4 text-aurora shrink-0 mt-0.5" />
+                                            {f}
+                                        </li>
+                                    ))}
+                                    {plan.notIncluded.map((f) => (
+                                        <li key={f} className="flex items-start gap-2.5 text-sm text-muted-foreground/50 line-through">
+                                            <CheckCircle className="h-4 w-4 text-white/10 shrink-0 mt-0.5" />
+                                            {f}
+                                        </li>
+                                    ))}
+                                </ul>
+
+                                <button
+                                    onClick={() => !isCurrent && !isDowngrade && handlePurchase(plan.id)}
+                                    disabled={loadingPlan === plan.id || isCurrent || isDowngrade}
+                                    className={`w-full py-3 rounded-2xl text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
+                                        isCurrent
+                                            ? "bg-secondary/50 text-muted-foreground cursor-default border border-white/5"
+                                            : isDowngrade
+                                            ? "bg-secondary/30 text-muted-foreground/50 cursor-not-allowed border border-white/5"
+                                            : plan.id === "starter"
+                                            ? "bg-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.4)] hover:bg-blue-700 hover:scale-[1.02]"
+                                            : plan.id === "elite"
+                                            ? "bg-orange-600 text-white shadow-[0_0_20px_rgba(234,88,12,0.4)] hover:bg-orange-700 hover:scale-[1.02]"
+                                            : plan.recommended
+                                            ? "bg-aurora text-white shadow-[var(--shadow-glow)] hover:scale-[1.02]"
+                                            : "border border-white/10 bg-white/5 text-white hover:bg-white/10"
+                                    } disabled:opacity-50`}
+                                >
+                                    {loadingPlan === plan.id ? (
+                                        <span className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    ) : isCurrent ? (
+                                        "Current Plan"
+                                    ) : isDowngrade ? (
+                                        "Plan Active"
+                                    ) : isUpgrade ? (
+                                        <>Upgrade Now <ArrowRight className="h-4 w-4" /></>
+                                    ) : (
+                                        <>{plan.cta} <ArrowRight className="h-4 w-4" /></>
+                                    )}
+                                </button>
+                            </div>
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
 
             <div className="max-w-5xl mx-auto rounded-3xl border border-white/5 bg-white/[0.02] p-8">

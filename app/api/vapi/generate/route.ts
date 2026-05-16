@@ -64,9 +64,10 @@ export async function POST(request: Request) {
             techstack: techstackArray,
             questions: [],
             userId: userid || "",
+            isPremium: isPremium, // ✅ Save plan status for limit checks
             amountMode: amountMode || "questions",
-            duration: duration || 30,
-            questionCount: questionCount || amount || 5,
+            duration: amountMode === "time" ? (duration || 30) : 99,
+            questionCount: amountMode === "questions" ? (questionCount || amount || 5) : 99,
             resumeText: resumeText || "",
             jdText: jdText || "",
             prepText: prepText || "",

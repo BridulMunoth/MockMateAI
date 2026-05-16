@@ -22,6 +22,26 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
         }
 
+        // ── 2. Handle Upgrades: Deduct price of active plan ────────────────────
+        let finalAmount = plan.amount;
+        const currentPlan = currentUser.plan || "free";
+        const isCurrentlyActive = currentUser.planExpiresAt && new Date(currentUser.planExpiresAt) > new Date();
+
+        if (isCurrentlyActive && currentPlan !== "free") {
+            const currentPlanData = PLANS[currentPlan];
+            if (currentPlanData && plan.amount > currentPlanData.amount) {
+                // It's an upgrade!
+                finalAmount = plan.amount - currentPlanData.amount;
+                console.log(`[Razorpay] Upgrade detected: ${currentPlan} -> ${planId}. New amount: ${finalAmount}`);
+            } else if (currentPlan === planId) {
+                // Renewal at full price
+                finalAmount = plan.amount;
+            } else {
+                // Downgrade or same price - usually not allowed or just full price
+                finalAmount = plan.amount;
+            }
+        }
+
         const auth = Buffer.from(
             `${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`
         ).toString("base64");
@@ -33,7 +53,7 @@ export async function POST(req: Request) {
                 Authorization: `Basic ${auth}`,
             },
             body: JSON.stringify({
-                amount: plan.amount,
+                amount: finalAmount,
                 currency: "INR",
                 receipt: `mm_${userId}_${planId}_${Date.now()}`.slice(0, 40),
                 notes: { userId, planId },

@@ -34,7 +34,9 @@ export type Interview = {
 
 const formatDate = (iso: string) => {
   const d = new Date(iso);
-  return d.toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" });
+  const date = d.toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" });
+  const time = d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
+  return `${date} • ${time}`;
 };
 
 const scoreColor = (s: number) =>
@@ -48,7 +50,10 @@ const scoreLabel = (s: number) =>
 
 const InterviewCard = ({ interview }: { interview: Interview }) => {
   const score    = interview.latestScore ?? interview.score;
-  const taken    = (interview.attemptCount != null && interview.attemptCount > 0) || score != null;
+  const sessionLogs = (interview as any).sessionLogs || [];
+  const taken    = (interview.attemptCount != null && interview.attemptCount > 0) || 
+                   score != null || 
+                   (Array.isArray(sessionLogs) && sessionLogs.length > 0);
   const typeStr  = Array.isArray(interview.type) ? interview.type[0] : interview.type;
   const company  = interview.companyName?.trim() || "";
 
