@@ -1,22 +1,24 @@
 import { ReactNode } from "react";
-import { isAuthenticated } from "@/lib/actions/auth.action";
+import { getCurrentUser } from "@/lib/actions/auth.action";
 import { redirect } from "next/navigation";
 import Navbar from "@/components/Navbar";
+
 const RootLayout = async ({ children }: { children: ReactNode }) => {
   // ==========================================
-  // GLOBAL LAYOUT SECURITY GUARD
+  // GLOBAL LAYOUT SECURITY GUARD (SINGLE FETCH)
   // ==========================================
-  // This verifies the secure Server Session Cookie. If the user is unauthenticated,
-  // this layout instantly deflects them back to the login screen, protecting ALL child UI.
-  const isUserAuthenticated = await isAuthenticated();
+  // We fetch the full user ONCE here on the server. If unauthenticated,
+  // we redirect. If authenticated, we pass the user down to Navbar so the
+  // Navbar does NOT need to make its own separate Firestore round-trip.
+  const user = await getCurrentUser();
   
-  if (!isUserAuthenticated) {
+  if (!user) {
     redirect('/sign-in');
   }
 
   return (
     <div className="flex flex-col min-h-screen">
-      <Navbar />
+      <Navbar user={user} />
       {children}
     </div>
   );

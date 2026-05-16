@@ -44,6 +44,8 @@ const resolveIconURL = async (tech: string): Promise<string> => {
   if (await checkIconExists(simpleIcon)) return simpleIcon;
 
   // 4. Final fallback — a colored letter avatar via UI Avatars
+  // Domain guessing for arbitrary tech stacks (like excel.com, express.com) yields
+  // unrelated company logos, so we stick to safe initial avatars.
   const encoded = encodeURIComponent(tech.slice(0, 2).toUpperCase());
   return `https://ui-avatars.com/api/?name=${encoded}&background=6d28d9&color=fff&size=28&bold=true&rounded=true&format=svg`;
 };

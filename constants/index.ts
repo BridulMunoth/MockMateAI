@@ -26,7 +26,7 @@ export const mappings = {
   firebase: "firebase",
   docker: "docker",
   kubernetes: "kubernetes",
-  aws: "aws",
+  aws: "amazonwebservices",
   azure: "azure",
   gcp: "gcp",
   digitalocean: "digitalocean",
@@ -95,6 +95,13 @@ export const mappings = {
   netlify: "netlify",
   vercel: "vercel",
   "aws amplify": "amplify",
+  excel: "microsoftexcel",
+  "ms excel": "microsoftexcel",
+  word: "microsoftword",
+  "ms word": "microsoftword",
+  powerpoint: "microsoftpowerpoint",
+  "ms powerpoint": "microsoftpowerpoint",
+  ppt: "microsoftpowerpoint",
 };
 
 // export const interviewer: CreateAssistantDTO = {

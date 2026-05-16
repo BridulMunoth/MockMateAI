@@ -40,3 +40,13 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# Report Generator Files
+*.docx
+~$*.docx
+temp.zip
+temp_docx/
+extracted_text.txt
+generate_report.mjs
+generate_content*.js
+report_content*.mjs
+extract_docx.*

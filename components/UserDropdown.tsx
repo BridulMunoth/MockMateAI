@@ -90,6 +90,8 @@ export default function UserDropdown({ user }: { user: any }) {
 
   if (!user) return null;
 
+  const firstName = user.name?.split(" ")[0] || "";
+
   return (
     <div className="relative" ref={dropdownRef}>
       {/* Trigger */}
@@ -99,14 +101,16 @@ export default function UserDropdown({ user }: { user: any }) {
       >
         <div className="relative h-8 w-8 rounded-full overflow-hidden bg-secondary ring-1 ring-white/10 group-hover:ring-aurora/50 transition-all">
           {user.photoURL ? (
-            <Image src={user.photoURL} alt={user.name} fill sizes="32px" className="object-cover" unoptimized />
+            <Image src={user.photoURL} alt={user.name} fill sizes="32px" className="object-cover" />
           ) : (
             <div className="h-full w-full flex items-center justify-center bg-aurora/20 text-aurora font-semibold">
               {user.name?.charAt(0).toUpperCase() || "U"}
             </div>
           )}
         </div>
-        <span className="text-sm font-medium text-white group-hover:text-aurora transition-colors">Account</span>
+        <span className="text-sm font-medium text-white group-hover:text-aurora transition-colors">
+          Hi, {firstName}
+        </span>
       </button>
 
       {/* Dropdown Menu */}
@@ -117,7 +121,13 @@ export default function UserDropdown({ user }: { user: any }) {
             <div className="space-y-1">
               <div className="px-3 py-3 flex items-center gap-3 border-b border-white/5 mb-2">
                 <div className="relative h-10 w-10 rounded-full overflow-hidden bg-secondary ring-1 ring-white/10">
-                   <Image src={user.photoURL || "/avatars/default.png"} alt={user.name} fill className="object-cover" unoptimized />
+                  {user.photoURL ? (
+                    <Image src={user.photoURL} alt={user.name} fill className="object-cover" />
+                  ) : (
+                    <div className="h-full w-full flex items-center justify-center bg-aurora/20 text-aurora font-semibold">
+                      {user.name?.charAt(0).toUpperCase() || "U"}
+                    </div>
+                  )}
                 </div>
                 <div className="min-w-0 text-left">
                   <p className="text-sm font-semibold text-white truncate">{user.name}</p>
@@ -167,7 +177,6 @@ export default function UserDropdown({ user }: { user: any }) {
                     alt="Preview" 
                     fill 
                     className={`object-cover transition-all duration-500 ${isUploading ? 'opacity-30 blur-sm' : 'group-hover:scale-110 group-hover:brightness-50'}`} 
-                    unoptimized 
                   />
                   <div className="absolute inset-0 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                     <Camera className="h-6 w-6 text-white mb-1" />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   LayoutDashboard,
@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   ArrowRight,
 } from "lucide-react";
+import PaywallModal from "@/components/PaywallModal";
 
 interface Props {
   role: string;
@@ -58,6 +59,11 @@ export const GeneratingScreen = ({ role, formData, userId, onReadyToJoin }: Prop
   const [isReady, setIsReady] = useState(false);
   const [orbitAngle, setOrbitAngle] = useState(0);
   const [interviewId, setInterviewId] = useState<string>("");
+  const [showPaywall, setShowPaywall] = useState(false);
+
+  // 🔒 Guard against React 18 Strict Mode double-invocation.
+  // Without this, generate() fires twice in development → 2 Firestore docs → 2 cards.
+  const hasRun = useRef(false);
 
   // Rotate tip every 4s
   useEffect(() => {
@@ -73,12 +79,13 @@ export const GeneratingScreen = ({ role, formData, userId, onReadyToJoin }: Prop
 
   // API Call and Progress
   useEffect(() => {
-    let isCancelled = false;
+    // ✅ Only ever run once — prevents duplicate interview creation
+    if (hasRun.current) return;
+    hasRun.current = true;
     let currentProgress = 0;
-    
+
     // Smooth progress up to 90% while waiting for API
     const progressId = setInterval(() => {
-      if (isCancelled) return;
       currentProgress = Math.min(90, currentProgress + 1);
       setProgress(currentProgress);
     }, 100);
@@ -100,32 +107,41 @@ export const GeneratingScreen = ({ role, formData, userId, onReadyToJoin }: Prop
             duration: formData.duration,
             questionCount: formData.questionCount,
             userid: userId,
+            // ✅ Parsed file contents — personalizes AI questions
+            resumeText: formData.resumeText || "",
+            jdText: formData.jdText || "",
+            prepText: formData.prepText || "",
           }),
         });
 
         const data = await res.json();
+
+        // Server-side free-tier limit check
+        if (res.status === 403 && data.error === "FREE_LIMIT_REACHED") {
+          setShowPaywall(true);
+          clearInterval(progressId);
+          return;
+        }
+
         if (data.interviewId) {
           setInterviewId(data.interviewId);
         }
-
       } catch (err) {
         console.error("Error generating:", err);
       } finally {
-        if (!isCancelled) {
-          clearInterval(progressId);
-          setProgress(100);
-          setTimeout(() => setIsReady(true), 600);
-        }
+        clearInterval(progressId);
+        setProgress(100);
+        setTimeout(() => setIsReady(true), 600);
       }
     };
 
     generate();
 
     return () => {
-      isCancelled = true;
       clearInterval(progressId);
     };
   }, [formData, userId]);
+
 
   // Orbit animation (CSS would be cleaner, but JS gives us control)
   useEffect(() => {
@@ -137,6 +153,21 @@ export const GeneratingScreen = ({ role, formData, userId, onReadyToJoin }: Prop
   const quote = QUOTES[quoteIdx];
 
   return (
+    <>
+      {/* Paywall shown when free tier limit is hit */}
+      {showPaywall && userId && (
+        <PaywallModal
+          userId={userId}
+          onClose={() => setShowPaywall(false)}
+          onSuccess={() => {
+            // Payment succeeded — reset and let them proceed
+            setShowPaywall(false);
+            hasRun.current = false;
+            // Re-trigger generate by briefly clearing then restoring formData flag
+            window.location.reload();
+          }}
+        />
+      )}
     <div className="min-h-screen flex flex-col items-center justify-center px-4 py-16 relative overflow-hidden">
       {/* Ambient blobs */}
       <div className="absolute -top-60 left-1/2 -translate-x-1/2 h-[500px] w-[500px] rounded-full bg-aurora opacity-10 blur-3xl pointer-events-none" />
@@ -280,6 +311,7 @@ export const GeneratingScreen = ({ role, formData, userId, onReadyToJoin }: Prop
         )}
       </div>
     </div>
+    </>
   );
 };
 

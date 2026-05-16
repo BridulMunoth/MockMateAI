@@ -21,11 +21,16 @@ export async function getInterviewById(id: string) {
 
         const data = docSnap.data();
         
-        // Return serializable data
+        // Return serializable data — use explicit shape for type safety
         return {
             id: docSnap.id,
-            ...data,
-            createdAt: data?.createdAt ? data.createdAt : null,
+            role: (data?.role as string) || "",
+            type: data?.type || [],
+            techstack: data?.techstack || [],
+            companyName: data?.companyName || "",
+            level: data?.level || "",
+            createdAt: data?.createdAt || null,
+            ...(data as Record<string, any>),
         };
     } catch (error) {
         console.error("Error fetching interview:", error);

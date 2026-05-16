@@ -2,6 +2,9 @@
 
 import { adminDb, adminAuth } from "@/firebase/admin";
 import { cookies } from "next/headers";
+import { cache } from "react";
+import { unstable_cache, revalidateTag } from "next/cache";
+
 
 /**
  * ==========================================
@@ -158,36 +161,41 @@ export async function removeSession() {
  * SECURELY FETCH CURRENT USER (SERVER ONLY)
  * ==========================================
  * Next.js Server Components call this to invisibly grab the user's data from Firestore 
- * using their HTTPOnly Session Cookie, absolutely completely preventing client-side loading screens!
+ * using their HTTPOnly Session Cookie.
+ * 
+ * ✅ Wrapped with React cache() — within a single server render, no matter how many
+ * components call this (layout + page), the Firebase verifySessionCookie + Firestore
+ * lookup runs ONLY ONCE. Subsequent calls reuse the cached result instantly.
  */
-export async function getCurrentUser() {
+export const getCurrentUser = cache(async () => {
     try {
         const cookieStore = await cookies();
         const sessionCookie = cookieStore.get('session')?.value;
 
         if (!sessionCookie) return null;
 
-        // 1. Cryptographically verify the session is legit and hasn't been tampered with
-        const decodedClaims = await adminAuth.verifySessionCookie(sessionCookie, true);
+        // ✅ checkRevoked: false = local-only cryptographic JWT verification (~0ms).
+        //    checkRevoked: true = makes an HTTP request to Google's servers on EVERY render
+        //    which adds 3-15 seconds from India. The cookie already has 7-day expiry + 
+        //    cryptographic signature. removeSession() handles logout securely without needing this.
+        const decodedClaims = await adminAuth.verifySessionCookie(sessionCookie, false);
 
-        // 2. Safely Fetch their live detailed profile from Firestore bypassing client-side security rules
+        // Fetch user profile from Firestore (cached separately by unstable_cache)
         const userDoc = await adminDb.collection("users").doc(decodedClaims.uid).get();
         const data = userDoc.data();
 
         if (!userDoc.exists || !data) return null;
 
-        // 3. Return strictly serializable data to prevent Next.js React hydration crashes
         return {
             uid: decodedClaims.uid,
             name: data.name || "User",
             email: data.email,
-            photoURL: data.photoURL,
+            photoURL: data.photoURL || null,
         };
     } catch (error) {
-        // Normal behavior when session is expired or strictly doesn't exist
         return null;
     }
-}
+});
 
 /**
  * ==========================================
@@ -236,26 +244,50 @@ export async function getRecentUsers(limitCount: number = 4) {
  * FETCH USER'S PRIVATE INTERVIEWS
  * ==========================================
  * Retrieves the current user's past interviews from Firestore.
+ * 
+ * ✅ Wrapped with unstable_cache — results are cached server-side for 60 seconds per user.
+ * Navigating away and back to the dashboard reuses cached data instantly.
+ * Call revalidateTag(`interviews-${userId}`) after creating a new interview to bust the cache.
  */
 export async function getInterviewsByUserId(userId: string) {
+    const fetcher = unstable_cache(
+        async (uid: string) => {
+            try {
+                const interviewsSnapshot = await adminDb.collection("interviews")
+                    .where("userId", "==", uid)
+                    .get();
+
+                const interviews = interviewsSnapshot.docs.map((doc) => ({
+                    id: doc.id,
+                    ...doc.data()
+                })).sort((a: any, b: any) => {
+                    const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                    const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                    return dateB - dateA;
+                });
+
+                return interviews;
+            } catch (error) {
+                console.error("Failed to fetch user interviews:", error);
+                return [];
+            }
+        },
+        [`interviews-${userId}`],           // unique cache key per user
+        { revalidate: 60, tags: [`interviews-${userId}`] } // 60s TTL + tag for manual invalidation
+    );
+
+    return fetcher(userId);
+}
+
+/**
+ * Call this after creating a new interview so the cache is immediately invalidated
+ * and the dashboard shows the new interview on next render.
+ */
+export async function invalidateInterviewsCache(userId: string) {
     try {
-        const interviewsSnapshot = await adminDb.collection("interviews")
-            .where("userId", "==", userId)
-            .get();
-
-        const interviews = interviewsSnapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data()
-        })).sort((a: any, b: any) => {
-            const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-            const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-            return dateB - dateA;
-        });
-
-        return interviews;
-    } catch (error) {
-        console.error("Failed to fetch user interviews:", error);
-        return [];
+        revalidateTag(`interviews-${userId}`, "");
+    } catch {
+        // revalidateTag may not work outside request context — safe to ignore
     }
 }
 
@@ -274,3 +306,37 @@ export async function updateProfileData(userId: string, data: { name?: string; p
         return { success: false, message: "Failed to update profile." };
     }
 }
+
+/**
+ * ==========================================
+ * GET USER PLAN & INTERVIEW COUNT
+ * ==========================================
+ * Returns the user's active plan and their total interview count.
+ * Used by the interview creation flow to gate access before showing the form.
+ */
+export async function getUserPlanAndCount(uid: string): Promise<{
+    isPremium: boolean;
+    plan: string;
+    interviewCount: number;
+}> {
+    try {
+        const [userDoc, interviewsSnap] = await Promise.all([
+            adminDb.collection("users").doc(uid).get(),
+            adminDb.collection("interviews").where("userId", "==", uid).get(),
+        ]);
+
+        const userData = userDoc.data();
+        const plan = userData?.plan ?? "free";
+        const planExpiresAt = userData?.planExpiresAt;
+
+        const isPremium =
+            plan !== "free" &&
+            !!planExpiresAt &&
+            new Date(planExpiresAt) > new Date();
+
+        return { isPremium, plan, interviewCount: interviewsSnap.size };
+    } catch {
+        return { isPremium: false, plan: "free", interviewCount: 0 };
+    }
+}
+

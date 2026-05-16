@@ -1,10 +1,13 @@
 import { ReactNode } from "react";
 import Navbar from "@/components/Navbar";
+import { getCurrentUser } from "@/lib/actions/auth.action";
 
-const PublicLayout = ({ children }: { children: ReactNode }) => {
+const PublicLayout = async ({ children }: { children: ReactNode }) => {
+  const user = await getCurrentUser();
+
   return (
     <div className="flex flex-col min-h-screen">
-      <Navbar />
+      <Navbar user={user} />
       {children}
     </div>
   );

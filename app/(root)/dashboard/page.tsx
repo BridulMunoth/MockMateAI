@@ -2,168 +2,130 @@ import { getCurrentUser, getInterviewsByUserId } from "@/lib/actions/auth.action
 import { redirect } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import LogoutButton from "@/components/LogoutButton";
-import { ArrowRight, Sparkles, Loader2 } from "lucide-react";
+import { ArrowRight, Sparkles, Zap } from "lucide-react";
 import InterviewCard from "@/components/InterviewCard";
+import InterviewCarousel from "@/components/InterviewCarousel";
+import DashboardRefreshTrigger from "@/components/DashboardRefreshTrigger";
 import { availableInterviews } from "@/constants/interviews";
-import { Suspense } from "react";
-
-// Server component to fetch and render user interviews
-async function UserInterviewsList({ userId }: { userId: string }) {
-    const userInterviews = await getInterviewsByUserId(userId);
-
-    if (!userInterviews.length) {
-        return (
-            <div className="rounded-3xl glass-strong border border-white/5 p-12 flex flex-col items-center justify-center text-center space-y-6 relative overflow-hidden group">
-                <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                <div className="w-20 h-20 rounded-full bg-secondary/50 border border-white/10 flex items-center justify-center shadow-[0_0_30px_rgba(139,92,246,0.2)] animate-glow-float">
-                    <span className="text-4xl">🚀</span>
-                </div>
-                <div className="space-y-2 max-w-sm">
-                    <h3 className="text-xl font-semibold text-white">No interviews yet</h3>
-                    <p className="text-sm text-muted-foreground leading-relaxed">
-                        You haven't taken any mock interviews. Ready to practice and level up your skills?
-                    </p>
-                </div>
-                <Link
-                    href="/interview/new"
-                    className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-full bg-aurora text-primary-foreground font-medium shadow-[var(--shadow-glow)] hover:scale-[1.02] transition-transform relative z-10"
-                >
-                    Start Your First Interview
-                    <ArrowRight className="h-4 w-4" />
-                </Link>
-            </div>
-        );
-    }
-
-    return (
-        <div className="space-y-4">
-            {userInterviews.length > 3 && (
-                <div className="flex justify-end px-2">
-                    <Link href="/dashboard" className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1 transition-colors">
-                        View all <ArrowRight className="h-3.5 w-3.5" />
-                    </Link>
-                </div>
-            )}
-            {/* Horizontally scrollable tray */}
-            <div className="flex gap-5 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
-                {userInterviews.map((i) => (
-                    <div key={i.id} className="min-w-[320px] max-w-[380px] flex-shrink-0 snap-start">
-                        <InterviewCard interview={i} />
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-}
 
 export default async function DashboardRoot() {
-    const user = await getCurrentUser();
+    const [user, userInterviews] = await Promise.all([
+        getCurrentUser(),
+        getCurrentUser().then((u) => u ? getInterviewsByUserId(u.uid) : []),
+    ]);
 
-    if (!user) {
-        redirect('/sign-in');
-    }
+    if (!user) redirect('/sign-in');
 
     return (
         <main className="container mx-auto py-10 px-4 md:px-8 space-y-12 animate-fade-in-up">
-            
-            {/* Minimal User Profile Header */}
-            <div className="flex items-center justify-between pb-4 border-b border-white/5">
-                <div className="flex items-center gap-4">
-                    <div className="relative w-12 h-12 rounded-full overflow-hidden border-2 border-primary shadow-[0_0_15px_rgba(139,92,246,0.3)] bg-secondary">
-                        {user.photoURL ? (
-                            <Image src={user.photoURL} alt="Avatar" width={48} height={48} unoptimized className="object-cover" />
-                        ) : (
-                            <div className="w-full h-full bg-violet-900/50 flex items-center justify-center text-xl">🤖</div>
-                        )}
-                    </div>
-                    <div>
-                        <p className="text-sm text-muted-foreground">Welcome back,</p>
-                        <h2 className="font-bold text-lg text-white">{user.name}</h2>
-                    </div>
-                </div>
-                <LogoutButton />
-            </div>
+            <DashboardRefreshTrigger />
 
-            {/* Friend's CTA card */}
-            <section className="relative rounded-3xl glass-strong overflow-hidden">
-                <div className="absolute -top-32 -left-32 h-80 w-80 rounded-full bg-primary/40 blur-3xl" />
-                <div className="absolute -bottom-32 right-0 h-80 w-80 rounded-full bg-accent/30 blur-3xl" />
-                <div className="relative grid md:grid-cols-[1fr_360px] gap-8 p-8 md:p-12 items-center">
-                    <div className="max-w-xl">
-                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full glass text-xs text-muted-foreground mb-5">
-                            <Sparkles className="h-3.5 w-3.5 text-accent" />
+
+
+            {/* ── Hero CTA Card ── */}
+            <section className="relative rounded-3xl overflow-hidden border border-white/8 shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_32px_64px_rgba(0,0,0,0.5)]"
+                style={{ background: "linear-gradient(135deg, hsl(250 30% 8%) 0%, hsl(260 25% 11%) 50%, hsl(240 30% 9%) 100%)" }}
+            >
+                {/* Ambient glow blobs */}
+                <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-violet-600/25 blur-[80px] pointer-events-none" />
+                <div className="absolute -bottom-24 right-8 h-72 w-72 rounded-full bg-indigo-500/20 blur-[80px] pointer-events-none" />
+                <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+
+                <div className="relative grid md:grid-cols-[1fr_auto] gap-6 p-8 md:p-12 items-center">
+                    <div className="max-w-lg space-y-6">
+                        {/* Badge */}
+                        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-aurora/30 bg-aurora/10 text-xs font-medium text-aurora/90 backdrop-blur-sm">
+                            <Sparkles className="h-3 w-3" />
                             AI-powered interview practice
                         </div>
-                        <h1 className="text-4xl md:text-5xl font-semibold tracking-tight leading-[1.05]">
-                            Get interview-ready with
-                            <br />
-                            <span className="text-aurora">AI practice & feedback</span>
-                        </h1>
-                        <p className="mt-5 text-muted-foreground text-lg">
+
+                        {/* Headline */}
+                        <div className="space-y-1">
+                            <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-white leading-[1.08]">
+                                Get interview-ready with
+                            </h1>
+                            <h1 className="text-4xl md:text-5xl font-bold tracking-tight leading-[1.08] bg-gradient-to-r from-violet-400 via-purple-300 to-indigo-400 bg-clip-text text-transparent">
+                                AI practice &amp; feedback
+                            </h1>
+                        </div>
+
+                        {/* Sub */}
+                        <p className="text-muted-foreground text-base leading-relaxed max-w-sm">
                             Practice real interview questions with a voice-first AI coach and get
                             instant, forensic feedback on every answer.
                         </p>
-                        <div className="mt-7 flex flex-col sm:flex-row gap-3">
+
+                        {/* CTAs */}
+                        <div className="flex flex-wrap gap-3 pt-1">
                             <Link
                                 href="/interview/new"
-                                className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-aurora text-primary-foreground font-medium shadow-[var(--shadow-glow)] hover:scale-[1.02] transition-transform"
+                                className="inline-flex items-center gap-2.5 px-6 py-3 rounded-full font-semibold text-sm text-white shadow-[0_0_20px_rgba(139,92,246,0.45),inset_0_1px_0_rgba(255,255,255,0.15)] transition-all hover:scale-[1.03] hover:shadow-[0_0_30px_rgba(139,92,246,0.6)] active:scale-[0.98]"
+                                style={{ background: "linear-gradient(135deg, hsl(263 70% 55%), hsl(245 75% 60%))" }}
                             >
+                                <Zap className="h-4 w-4" />
                                 Start an Interview
                                 <ArrowRight className="h-4 w-4" />
                             </Link>
-                            <Link
-                                href="/feedback"
-                                className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full glass-strong hover:ring-glow transition-all text-foreground"
-                            >
-                                See sample feedback
-                            </Link>
                         </div>
                     </div>
-                    <div className="hidden md:flex justify-end">
+
+                    {/* Robot image */}
+                    <div className="hidden md:flex items-end justify-end self-end">
                         <Image
                             src="/robot.png"
                             alt="MockMate AI robot"
-                            width={400}
-                            height={400}
+                            width={380}
+                            height={380}
                             priority
-                            loading="eager"
-                            className="w-[340px] drop-shadow-[0_30px_60px_hsl(258_90%_50%/0.4)] animate-float"
+                            className="w-[300px] xl:w-[340px] drop-shadow-[0_20px_50px_hsl(258_90%_55%/0.45)] animate-float"
                         />
                     </div>
                 </div>
             </section>
 
-            {/* Your Interviews */}
-            <section className="space-y-2">
-                <div className="flex items-end justify-between">
-                    <div>
-                        <p className="text-xs uppercase tracking-widest text-aurora font-semibold">Continue</p>
-                        <h2 className="text-2xl md:text-3xl font-semibold tracking-tight mt-1">
-                            Your Interviews
-                        </h2>
-                    </div>
+            {/* ── Your Interviews ── */}
+            <section className="space-y-4">
+                <div>
+                    <p className="text-[11px] uppercase tracking-[0.15em] text-aurora font-semibold">Continue</p>
+                    <h2 className="text-2xl md:text-3xl font-bold tracking-tight mt-1 text-white">Your Interviews</h2>
                 </div>
 
-                <Suspense fallback={
-                    <div className="h-48 w-full rounded-3xl glass-strong border border-white/5 flex flex-col items-center justify-center space-y-4">
-                        <Loader2 className="h-8 w-8 text-aurora animate-spin" />
-                        <p className="text-sm text-muted-foreground animate-pulse">Loading your history...</p>
+                {!userInterviews.length ? (
+                    <div className="rounded-3xl border border-white/5 bg-white/[0.02] p-12 flex flex-col items-center justify-center text-center space-y-6 relative overflow-hidden group">
+                        <div className="absolute inset-0 bg-gradient-to-br from-primary/8 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                        <div className="w-20 h-20 rounded-full bg-secondary/50 border border-white/10 flex items-center justify-center shadow-[0_0_30px_rgba(139,92,246,0.2)]">
+                            <span className="text-4xl">🚀</span>
+                        </div>
+                        <div className="space-y-2 max-w-sm">
+                            <h3 className="text-xl font-semibold text-white">No interviews yet</h3>
+                            <p className="text-sm text-muted-foreground leading-relaxed">
+                                You haven&apos;t taken any mock interviews. Ready to practice and level up your skills?
+                            </p>
+                        </div>
+                        <Link
+                            href="/interview/new"
+                            className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-full bg-aurora text-primary-foreground font-medium shadow-[var(--shadow-glow)] hover:scale-[1.02] transition-transform relative z-10"
+                        >
+                            Start Your First Interview
+                            <ArrowRight className="h-4 w-4" />
+                        </Link>
                     </div>
-                }>
-                    <UserInterviewsList userId={user.uid} />
-                </Suspense>
+                ) : (
+                    // ✅ InterviewCarousel replaces the raw scrollable div + native scrollbar
+                    // with a smooth carousel + dot indicators
+                    <InterviewCarousel>
+                        {(userInterviews as any[]).map((i) => (
+                            <InterviewCard key={i.id} interview={i} />
+                        ))}
+                    </InterviewCarousel>
+                )}
             </section>
 
-            {/* Take Interviews */}
+            {/* ── Take Interviews ── */}
             <section className="space-y-5">
-                <div className="flex items-end justify-between">
-                    <div>
-                        <p className="text-xs uppercase tracking-widest text-aurora font-semibold">Available</p>
-                        <h2 className="text-2xl md:text-3xl font-semibold tracking-tight mt-1">
-                            Take Interviews
-                        </h2>
-                    </div>
+                <div>
+                    <p className="text-[11px] uppercase tracking-[0.15em] text-aurora font-semibold">Available</p>
+                    <h2 className="text-2xl md:text-3xl font-bold tracking-tight mt-1 text-white">Take Interviews</h2>
                 </div>
 
                 {availableInterviews.length ? (
@@ -173,7 +135,7 @@ export default async function DashboardRoot() {
                         ))}
                     </div>
                 ) : (
-                    <div className="rounded-3xl glass p-10 text-center text-muted-foreground">
+                    <div className="rounded-3xl border border-white/5 bg-white/[0.02] p-10 text-center text-muted-foreground">
                         There are no interviews available
                     </div>
                 )}

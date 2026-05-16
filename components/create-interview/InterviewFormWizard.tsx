@@ -13,8 +13,11 @@ import {
   Target,
   Upload,
   Sparkles,
+  Zap,
 } from "lucide-react";
+import Link from "next/link";
 import { FileUploadZone } from "./FileUploadZone";
+import { parseFileToText } from "@/lib/fileParser";
 
 /* ── Types ── */
 export interface FormData {
@@ -29,10 +32,17 @@ export interface FormData {
   resume: File | null;
   jobDescription: File | null;
   prepMaterial: File | null;
+  // Parsed text content from uploaded files (populated before submit)
+  resumeText?: string;
+  jdText?: string;
+  prepText?: string;
 }
 
 interface Props {
   userName: string;
+  isFree?: boolean;
+  initialStep?: number;
+  initialData?: Partial<FormData>;
   onSubmit: (data: FormData) => void;
   onBack: () => void;
 }
@@ -76,23 +86,30 @@ const STEPS = [
 ];
 
 /* ── Component ── */
-export const InterviewFormWizard = ({ userName, onSubmit, onBack }: Props) => {
-  const [step, setStep] = useState(0);
+export const InterviewFormWizard = ({ userName, isFree = false, initialStep = 0, initialData = {}, onSubmit, onBack }: Props) => {
+  const [step, setStep] = useState(initialStep);
+  const [isParsing, setIsParsing] = useState(false);
   const [direction, setDirection] = useState<"forward" | "back">("forward");
   const [tagInput, setTagInput] = useState("");
 
+  // Free tier caps: 15 min max, 5 questions max
+  const FREE_MAX_DURATION = 15;
+  const FREE_MAX_QUESTIONS = 5;
+  const visibleDurations      = isFree ? DURATIONS.filter((d) => d <= FREE_MAX_DURATION)       : DURATIONS;
+  const visibleQuestionCounts = isFree ? QUESTION_COUNTS.filter((q) => q <= FREE_MAX_QUESTIONS) : QUESTION_COUNTS;
+
   const [data, setData] = useState<FormData>({
-    companyName:    "",
-    role:           "",
-    interviewTypes: [],
-    techStack:      [],
-    level:          "",
-    amountMode:     null,
-    duration:       null,
-    questionCount:  null,
-    resume:         null,
-    jobDescription: null,
-    prepMaterial:   null,
+    companyName:    initialData.companyName || "",
+    role:           initialData.role || "",
+    interviewTypes: initialData.interviewTypes || [],
+    techStack:      initialData.techStack || [],
+    level:          initialData.level || "",
+    amountMode:     initialData.amountMode || null,
+    duration:       initialData.duration || null,
+    questionCount:  initialData.questionCount || null,
+    resume:         initialData.resume || null,
+    jobDescription: initialData.jobDescription || null,
+    prepMaterial:   initialData.prepMaterial || null,
   });
 
   const update = <K extends keyof FormData>(key: K, val: FormData[K]) =>
@@ -139,7 +156,21 @@ export const InterviewFormWizard = ({ userName, onSubmit, onBack }: Props) => {
   );
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-start px-4 pt-12 pb-20 relative overflow-hidden">
+    <div 
+      className="min-h-screen flex flex-col items-center justify-start px-4 pt-12 pb-20 relative overflow-hidden"
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && canProceed()) {
+          e.preventDefault();
+          if (step < STEPS.length - 1) {
+            next();
+          } else if (!isParsing) {
+            // Trigger submit if on last step
+            const submitBtn = document.getElementById("submit-wizard-btn");
+            if (submitBtn) submitBtn.click();
+          }
+        }
+      }}
+    >
       {/* Ambient */}
       <div className="absolute -top-40 -left-40 h-96 w-96 rounded-full bg-aurora opacity-10 blur-3xl pointer-events-none" />
       <div className="absolute -bottom-40 -right-40 h-96 w-96 rounded-full bg-violet-800/20 blur-3xl pointer-events-none" />
@@ -283,7 +314,13 @@ export const InterviewFormWizard = ({ userName, onSubmit, onBack }: Props) => {
                     placeholder="Type a skill and press Enter…"
                     value={tagInput}
                     onChange={(e) => setTagInput(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addTag(tagInput); } }}
+                    onKeyDown={(e) => { 
+                      if (e.key === "Enter" || e.key === ",") { 
+                        e.preventDefault(); 
+                        e.stopPropagation(); 
+                        addTag(tagInput); 
+                      } 
+                    }}
                     className="flex-1 rounded-2xl bg-secondary/60 border border-white/10 px-4 py-2.5 text-sm text-white placeholder:text-muted-foreground focus:outline-none focus:border-aurora/50 focus:ring-1 focus:ring-aurora/30 transition-all"
                   />
                   <button
@@ -338,7 +375,9 @@ export const InterviewFormWizard = ({ userName, onSubmit, onBack }: Props) => {
           {step === 3 && (
             <div className="space-y-6 rounded-3xl glass-strong border border-white/5 p-6 md:p-8">
               <div>
-                <label className="text-sm font-medium text-white/80 block mb-3">Experience Level <span className="text-destructive-100 text-xs">*</span></label>
+                <label className="text-sm font-medium text-white/80 block mb-3">
+                  Experience Level <span className="text-destructive-100 text-xs">*</span>
+                </label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                   {LEVELS.map((l) => (
                     <button
@@ -357,6 +396,14 @@ export const InterviewFormWizard = ({ userName, onSubmit, onBack }: Props) => {
                   ))}
                 </div>
               </div>
+
+              {/* Free plan limit banner */}
+              {isFree && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-400">
+                  <span>🔒</span>
+                  <span><strong>Free plan:</strong> limited to 15 min &amp; 5 questions max. <Link href="/pricing" className="underline hover:text-amber-300">Upgrade</Link> for unlimited access.</span>
+                </div>
+              )}
 
               <div>
                 <div className="flex items-center justify-between mb-3">
@@ -387,37 +434,49 @@ export const InterviewFormWizard = ({ userName, onSubmit, onBack }: Props) => {
 
                 {data.amountMode === "time" ? (
                   <div className="flex gap-2 flex-wrap">
-                    {DURATIONS.map((d) => (
-                      <button
-                        key={d}
-                        type="button"
-                        onClick={() => update("duration", d)}
-                        className={`px-4 py-2 rounded-full text-sm border transition-all ${
-                          data.duration === d
-                            ? "bg-aurora/15 border-aurora/50 text-white ring-1 ring-aurora/30"
-                            : "glass border-white/10 text-muted-foreground hover:text-white"
-                        }`}
-                      >
-                        {d} min
-                      </button>
-                    ))}
+                    {DURATIONS.map((d) => {
+                      const locked = isFree && d > FREE_MAX_DURATION;
+                      return (
+                        <button
+                          key={d}
+                          type="button"
+                          onClick={() => !locked && update("duration", d)}
+                          disabled={locked}
+                          className={`px-4 py-2 rounded-full text-sm border transition-all ${
+                            locked
+                              ? "opacity-35 cursor-not-allowed border-white/5 text-muted-foreground"
+                              : data.duration === d
+                              ? "bg-aurora/15 border-aurora/50 text-white ring-1 ring-aurora/30"
+                              : "glass border-white/10 text-muted-foreground hover:text-white"
+                          }`}
+                        >
+                          {d} min {locked && "🔒"}
+                        </button>
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="flex gap-2 flex-wrap">
-                    {QUESTION_COUNTS.map((q) => (
-                      <button
-                        key={q}
-                        type="button"
-                        onClick={() => update("questionCount", q)}
-                        className={`px-4 py-2 rounded-full text-sm border transition-all ${
-                          data.questionCount === q
-                            ? "bg-aurora/15 border-aurora/50 text-white ring-1 ring-aurora/30"
-                            : "glass border-white/10 text-muted-foreground hover:text-white"
-                        }`}
-                      >
-                        {q} Qs
-                      </button>
-                    ))}
+                    {QUESTION_COUNTS.map((q) => {
+                      const locked = isFree && q > FREE_MAX_QUESTIONS;
+                      return (
+                        <button
+                          key={q}
+                          type="button"
+                          onClick={() => !locked && update("questionCount", q)}
+                          disabled={locked}
+                          className={`px-4 py-2 rounded-full text-sm border transition-all ${
+                            locked
+                              ? "opacity-35 cursor-not-allowed border-white/5 text-muted-foreground"
+                              : data.questionCount === q
+                              ? "bg-aurora/15 border-aurora/50 text-white ring-1 ring-aurora/30"
+                              : "glass border-white/10 text-muted-foreground hover:text-white"
+                          }`}
+                        >
+                          {q} Qs {locked && "🔒"}
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -426,25 +485,43 @@ export const InterviewFormWizard = ({ userName, onSubmit, onBack }: Props) => {
 
           {/* ── Step 4: File Uploads ── */}
           {step === 4 && (
-            <div className="space-y-4 rounded-3xl glass-strong border border-white/5 p-6 md:p-8">
-              <FileUploadZone
-                label="Resume / CV"
-                description="Upload your resume so we can ask experience-specific questions"
-                file={data.resume}
-                onFile={(f) => update("resume", f)}
-              />
-              <FileUploadZone
-                label="Job Description"
-                description="Paste the JD from the company portal or upload the PDF"
-                file={data.jobDescription}
-                onFile={(f) => update("jobDescription", f)}
-              />
-              <FileUploadZone
-                label="Prep Material"
-                description="Any notes, study guides, or files shared by your college/company"
-                file={data.prepMaterial}
-                onFile={(f) => update("prepMaterial", f)}
-              />
+            <div className="relative rounded-3xl overflow-hidden">
+              <div className={`space-y-4 rounded-3xl glass-strong border border-white/5 p-6 md:p-8 transition-all ${isFree ? "opacity-30 pointer-events-none grayscale" : ""}`}>
+                <FileUploadZone
+                  label="Resume / CV"
+                  description="Upload your resume so we can ask experience-specific questions"
+                  file={data.resume}
+                  onFile={(f) => update("resume", f)}
+                />
+                <FileUploadZone
+                  label="Job Description"
+                  description="Paste the JD from the company portal or upload the PDF"
+                  file={data.jobDescription}
+                  onFile={(f) => update("jobDescription", f)}
+                />
+                <FileUploadZone
+                  label="Prep Material"
+                  description="Any notes, study guides, or files shared by your college/company"
+                  file={data.prepMaterial}
+                  onFile={(f) => update("prepMaterial", f)}
+                />
+              </div>
+
+              {/* Lock overlay for free users */}
+              {isFree && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center p-8 bg-black/40 backdrop-blur-[2px]">
+                  <div className="h-14 w-14 rounded-2xl bg-amber-500/20 flex items-center justify-center mb-4 border border-amber-500/30">
+                    <Zap className="h-7 w-7 text-amber-500" />
+                  </div>
+                  <h3 className="text-xl font-bold text-white text-center">Premium Feature</h3>
+                  <p className="text-sm text-center text-white/80 mt-2 max-w-[280px]">
+                    Personalized questions based on your resume are only available for <strong>Pro &amp; Elite</strong> members.
+                  </p>
+                  <Link href="/pricing" className="mt-6 px-6 py-2.5 rounded-full bg-amber-600 text-white text-sm font-bold shadow-[0_0_20px_rgba(217,119,6,0.3)] hover:scale-105 transition-all">
+                    Upgrade to Unlock 🚀
+                  </Link>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -471,11 +548,39 @@ export const InterviewFormWizard = ({ userName, onSubmit, onBack }: Props) => {
             </button>
           ) : (
             <button
+              id="submit-wizard-btn"
               type="button"
-              onClick={() => onSubmit(data)}
-              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-aurora text-primary-foreground text-sm font-semibold shadow-[var(--shadow-glow)] hover:scale-[1.02] transition-all"
+              disabled={isParsing}
+              onClick={async () => {
+                setIsParsing(true);
+                try {
+                  // Parse files to text before submitting
+                  const [resumeText, jdText, prepText] = await Promise.all([
+                    data.resume ? parseFileToText(data.resume) : Promise.resolve(""),
+                    data.jobDescription ? parseFileToText(data.jobDescription) : Promise.resolve(""),
+                    data.prepMaterial ? parseFileToText(data.prepMaterial) : Promise.resolve(""),
+                  ]);
+
+                  onSubmit({
+                    ...data,
+                    resumeText,
+                    jdText,
+                    prepText,
+                  });
+                } finally {
+                  setIsParsing(false);
+                }
+              }}
+              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-aurora text-primary-foreground text-sm font-semibold shadow-[var(--shadow-glow)] hover:scale-[1.02] transition-all disabled:opacity-50"
             >
-              Generate Interview 🚀
+              {isParsing ? (
+                <>
+                  <span className="h-3 w-3 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                  Parsing files...
+                </>
+              ) : (
+                <>Generate Interview 🚀</>
+              )}
             </button>
           )}
         </div>

@@ -1,19 +1,32 @@
 import Link from "next/link";
-import { Calendar, Star, ArrowRight } from "lucide-react";
+import Image from "next/image";
+import { Calendar, Star, ArrowRight, Code2, Palette, LineChart, Target, Users, Rocket, Briefcase } from "lucide-react";
+import { Suspense } from "react";
 import DisplayTechIcons from "@/components/DisplayTechIcons";
 import CompanyLogo from "@/components/CompanyLogo";
+import CardSpotlight from "@/components/CardSpotlight";
+
+const getRoleIcon = (role: string = "", type: string = "") => {
+  const r = role.toLowerCase();
+  const t = type.toLowerCase();
+  if (r.includes("engineer") || r.includes("developer") || t.includes("technical")) return <Code2 className="h-6 w-6 text-white" />;
+  if (r.includes("design") || t.includes("creative")) return <Palette className="h-6 w-6 text-white" />;
+  if (r.includes("data") || r.includes("analy") || t.includes("scientific")) return <LineChart className="h-6 w-6 text-white" />;
+  if (r.includes("manager") || r.includes("product") || t.includes("managerial")) return <Target className="h-6 w-6 text-white" />;
+  if (r.includes("hr") || r.includes("human") || t.includes("behavioral")) return <Users className="h-6 w-6 text-white" />;
+  if (r.includes("market") || r.includes("sale")) return <Rocket className="h-6 w-6 text-white" />;
+  return <Briefcase className="h-6 w-6 text-white" />;
+};
 
 export type Interview = {
   id: string;
   role: string;
-  /** Free-form category: Technical, Behavioral, Mixed, Managerial, Scientific, Creative, etc. */
   type: string | string[];
-  /** Skills, tools, or domains relevant to this interview */
   techstack: string[];
-  createdAt: string; // ISO
+  createdAt: string;
   score?: number | null;
-  cover?: string; // emoji or single char
-  coverGradient?: string; // tailwind gradient classes
+  cover?: string;
+  coverGradient?: string;
   companyName?: string;
   latestScore?: number | null;
   attemptCount?: number;
@@ -21,107 +34,137 @@ export type Interview = {
 
 const formatDate = (iso: string) => {
   const d = new Date(iso);
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return d.toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" });
 };
 
-const getScoreColor = (score: number | null | undefined) => {
-  if (score == null) return "";
-  if (score >= 90) return "fill-emerald-400 text-emerald-400";
-  if (score >= 75) return "fill-yellow-400 text-yellow-400";
-  if (score >= 50) return "fill-orange-400 text-orange-400";
-  return "fill-red-400 text-red-400";
-};
+const scoreColor = (s: number) =>
+  s >= 90 ? "text-emerald-400 bg-emerald-400/10 border-emerald-400/30" :
+  s >= 75 ? "text-yellow-400  bg-yellow-400/10  border-yellow-400/30"  :
+  s >= 50 ? "text-orange-400  bg-orange-400/10  border-orange-400/30"  :
+             "text-red-400    bg-red-400/10    border-red-400/30";
+
+const scoreLabel = (s: number) =>
+  s >= 90 ? "Excellent" : s >= 75 ? "Good" : s >= 50 ? "Average" : "Needs Work";
 
 const InterviewCard = ({ interview }: { interview: Interview }) => {
-  const scoreToUse = interview.latestScore ?? interview.score;
-  const taken = (interview.attemptCount && interview.attemptCount > 0) || scoreToUse != null;
-  return (
-    <div className="group relative rounded-3xl glass hover:ring-glow transition-all overflow-hidden flex flex-col">
-      <div className="absolute -top-16 -right-16 h-40 w-40 rounded-full bg-aurora opacity-10 group-hover:opacity-20 blur-3xl transition" />
+  const score    = interview.latestScore ?? interview.score;
+  const taken    = (interview.attemptCount != null && interview.attemptCount > 0) || score != null;
+  const typeStr  = Array.isArray(interview.type) ? interview.type[0] : interview.type;
+  const company  = interview.companyName?.trim() || "";
 
-      {/* Header */}
-      <div className="p-6 flex items-start justify-between gap-4">
-        <div className={`h-14 w-14 rounded-2xl ${interview.coverGradient || "bg-gradient-to-br from-violet-500 to-indigo-700"} flex items-center justify-center text-2xl ring-1 ring-white/10 shadow-[var(--shadow-soft)] overflow-hidden`}>
-          {interview.companyName ? (
-             <CompanyLogo name={interview.companyName} fallback={interview.companyName.substring(0, 2).toUpperCase()} />
-          ) : (
-             <span>{interview.cover || "✨"}</span>
-          )}
+  return (
+    <CardSpotlight>
+      {taken && score != null && (
+        <div className="absolute top-3 right-3 z-20 group/star cursor-help">
+          <div className="relative flex items-center justify-center h-12 w-12 hover:scale-110 transition-transform">
+            <Star className={`h-10 w-10 fill-current ${
+              score >= 90 ? "text-emerald-400 drop-shadow-[0_0_12px_rgba(52,211,153,0.6)]" :
+              score >= 75 ? "text-yellow-400 drop-shadow-[0_0_12px_rgba(250,204,21,0.6)]" :
+              score >= 50 ? "text-orange-400 drop-shadow-[0_0_12px_rgba(251,146,60,0.6)]" :
+              "text-red-400 drop-shadow-[0_0_12px_rgba(248,113,113,0.6)]"
+            }`} />
+            <span className="absolute text-[11px] font-bold text-[hsl(250_25%_9%)] pt-0.5 pointer-events-none">
+              {score}
+            </span>
+          </div>
+
+          {/* Hover Tooltip explaining ranges */}
+          <div className="absolute top-12 right-0 w-44 p-3 rounded-xl bg-[hsl(250_25%_15%)] border border-white/10 shadow-2xl opacity-0 translate-y-2 group-hover/star:opacity-100 group-hover/star:translate-y-0 transition-all pointer-events-none z-30">
+             <div className="text-xs font-semibold text-white mb-2">Score Scale</div>
+             <div className="space-y-1.5 text-[10px]">
+               <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_5px_#34d399]"></div><span className="text-muted-foreground">90-100 Excellent</span></div>
+               <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-yellow-400 shadow-[0_0_5px_#facc15]"></div><span className="text-muted-foreground">75-89 Good</span></div>
+               <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-orange-400 shadow-[0_0_5px_#fb923c]"></div><span className="text-muted-foreground">50-74 Average</span></div>
+               <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-red-400 shadow-[0_0_5px_#f87171]"></div><span className="text-muted-foreground">&lt; 50 Needs Work</span></div>
+             </div>
+          </div>
         </div>
-        <span className="text-[11px] uppercase tracking-widest px-2.5 py-1 rounded-full bg-secondary/70 border border-white/5 text-muted-foreground">
-          {Array.isArray(interview.type) ? interview.type[0] : interview.type}
+      )}
+
+      {/* ── Top accent line ── */}
+      <div className="h-[2px] w-full bg-gradient-to-r from-violet-500 via-purple-400 to-indigo-500 opacity-60 group-hover:opacity-100 transition-opacity relative z-10" />
+
+      {/* ── Header: logo + company name + type badge ── */}
+      <div className="p-5 pb-3 flex items-start gap-3 justify-between">
+
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          {/* Logo container without white background */}
+          <div className="h-12 w-12 flex-shrink-0 flex items-center justify-center overflow-hidden">
+            {company ? (
+              <CompanyLogo name={company} fallbackNode={getRoleIcon(interview.role, typeStr)} />
+            ) : (
+              <div className="h-full w-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-inner drop-shadow-md">
+                {getRoleIcon(interview.role, typeStr)}
+              </div>
+            )}
+          </div>
+
+          <div className="min-w-0">
+            {/* Company name */}
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-aurora truncate">
+              {company || "Independent"}
+            </p>
+            {/* Role */}
+            <h3 className="text-[15px] font-bold text-white capitalize leading-snug truncate mt-0.5">
+              {interview.role} Interview
+            </h3>
+          </div>
+        </div>
+
+        {/* Type badge */}
+        <span className="flex-shrink-0 text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-full bg-white/[0.05] border border-white/[0.08] text-muted-foreground font-medium">
+          {typeStr}
         </span>
       </div>
 
-      {/* Body */}
-      <div className="px-6 pb-2 flex-1">
-        <h3 className="text-xl font-semibold capitalize leading-tight">
-          {interview.role} Interview
-        </h3>
-        <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
-          <span className="inline-flex items-center gap-1.5">
-            <Calendar className="h-3.5 w-3.5" />
-            {formatDate(interview.createdAt)}
-          </span>
-          <span className="relative inline-flex items-center gap-1.5 group/star cursor-help">
-            <Star className={`h-3.5 w-3.5 transition-colors ${getScoreColor(scoreToUse)}`} />
-            {taken ? `${scoreToUse}/100` : "Not taken"}
+      {/* ── Date + score row ── */}
+      <div className="px-5 pb-3 flex items-center gap-3 flex-wrap">
+        <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Calendar className="h-3 w-3 flex-shrink-0" />
+          {formatDate(interview.createdAt)}
+        </span>
 
-            {/* Custom Tooltip */}
-            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-44 p-3 rounded-xl glass-strong border border-white/10 shadow-[0_10px_40px_rgba(0,0,0,0.5)] opacity-0 translate-y-2 pointer-events-none group-hover/star:opacity-100 group-hover/star:translate-y-0 transition-all duration-300 z-50">
-              <p className="text-[10px] font-bold text-white/80 mb-2 uppercase tracking-wider text-center">Score Guide</p>
-              <div className="space-y-1.5 text-xs font-medium">
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 text-emerald-400"><Star className="h-3 w-3 fill-emerald-400" /> Excellent</span>
-                  <span className="text-white/70">90+</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 text-yellow-400"><Star className="h-3 w-3 fill-yellow-400" /> Good</span>
-                  <span className="text-white/70">75-89</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 text-orange-400"><Star className="h-3 w-3 fill-orange-400" /> Average</span>
-                  <span className="text-white/70">50-74</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 text-red-400"><Star className="h-3 w-3 fill-red-400" /> Poor</span>
-                  <span className="text-white/70">&lt;50</span>
-                </div>
-              </div>
-            </div>
+        {score != null ? (
+          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Star className="h-3 w-3 flex-shrink-0" />
+            Completed
           </span>
-        </div>
-
-        <p className="mt-4 text-sm text-muted-foreground line-clamp-2">
-          {taken
-            ? "Great effort! Review your feedback to sharpen your answers and keep climbing."
-            : "Practice this interview to improve your confidence and benchmark your skills."}
-        </p>
+        ) : (
+          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Star className="h-3 w-3 flex-shrink-0" />
+            {taken ? "Completed" : "Not taken"}
+          </span>
+        )}
       </div>
 
-      {/* Footer */}
-      <div className="p-6 pt-4 flex items-center justify-between z-10">
-        <DisplayTechIcons techstack={interview.techstack} />
-        
-        <div className="flex items-center gap-2">
+      {/* Divider */}
+      <div className="mx-5 mt-auto h-px bg-white/[0.05]" />
+
+      {/* ── Footer: tech icons + CTA ── */}
+      <div className="p-4 pt-3 flex items-center justify-between gap-3">
+        <Suspense fallback={<div className="h-7 w-24 rounded-full bg-white/5 animate-pulse" />}>
+          <DisplayTechIcons techstack={interview.techstack ?? []} />
+        </Suspense>
+
+        <div className="flex items-center gap-2 flex-shrink-0">
           {taken && (
             <Link
               href={`/feedback?id=${interview.id}`}
-              className="inline-flex items-center text-xs font-medium px-3.5 py-1.5 rounded-full glass hover:ring-glow transition-all text-white"
+              className="text-xs px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.04] hover:bg-white/10 text-white/70 hover:text-white transition-all font-medium"
             >
-              View feedback
+              Feedback
             </Link>
           )}
           <Link
             href={`/interview/new?id=${interview.id}`}
-            className="inline-flex items-center gap-1.5 text-xs font-medium px-4 py-1.5 rounded-full bg-aurora text-primary-foreground hover:scale-[1.03] shadow-[var(--shadow-glow)] transition-transform"
+            className="inline-flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-full bg-aurora text-white font-semibold hover:scale-[1.04] active:scale-[0.98] transition-transform shadow-[0_0_14px_rgba(139,92,246,0.4)]"
           >
-            {taken ? "Take again" : "Take it"}
+            {taken ? "Try again" : "Take it"}
             <ArrowRight className="h-3 w-3" />
           </Link>
         </div>
       </div>
-    </div>
+    </CardSpotlight>
   );
 };
 

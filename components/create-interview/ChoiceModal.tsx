@@ -117,75 +117,56 @@ export const ChoiceModal = ({ userName, onSelect }: Props) => {
           </div>
         </button>
 
-        {/* ── Voice Card (DISABLED / COMING SOON) ── */}
+        {/* ── Voice Card (Coming Soon) ── */}
         <button
           disabled
-          onMouseEnter={() => setHovered("voice")}
-          onMouseLeave={() => setHovered(null)}
-          className="group relative rounded-3xl p-8 text-left overflow-hidden cursor-not-allowed transition-all duration-300"
+          type="button"
+          className="group relative rounded-3xl p-8 text-left overflow-hidden cursor-not-allowed transition-all duration-500 opacity-60"
           style={{
             background: "rgba(255,255,255,0.02)",
-            border: "1px solid rgba(255,255,255,0.06)",
-            opacity: 0.65,
+            border: "1px solid rgba(255,255,255,0.05)",
+            boxShadow: "0 8px 40px rgba(0,0,0,0.2)",
           }}
         >
-          {/* Coming Soon badge */}
-          <div className="absolute top-5 right-5 z-20 text-[10px] px-2.5 py-1 rounded-md font-bold uppercase tracking-widest transition-all duration-300"
-            style={{
-              background: hovered === "voice" ? "rgba(139,92,246,0.2)" : "rgba(255,255,255,0.06)",
-              border: hovered === "voice" ? "1px solid rgba(139,92,246,0.4)" : "1px solid rgba(255,255,255,0.08)",
-              color: hovered === "voice" ? "#c4b5fd" : "#6b7280",
-            }}>
+          {/* Coming Soon Badge */}
+          <div className="absolute top-4 right-4 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-[10px] font-bold uppercase tracking-wider">
             Coming Soon
           </div>
 
-          <div className="relative z-10">
+          <div className="relative z-10 grayscale">
             <div className="h-14 w-14 rounded-2xl flex items-center justify-center mb-6"
               style={{
                 background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(255,255,255,0.08)",
+                border: "1px solid rgba(255,255,255,0.05)",
               }}>
-              <Mic className="h-7 w-7 transition-colors duration-300" style={{ color: hovered === "voice" ? "#a78bfa" : "#374151" }} />
+              <Mic className="h-7 w-7 text-slate-500" />
             </div>
 
-            <h3 className="text-xl font-bold mb-3 text-slate-600">Use Voice Agent</h3>
-            <p className="text-sm leading-relaxed mb-6 text-slate-700">
+            <h3 className="text-xl font-bold mb-3 text-slate-300">
+              Use Voice Agent
+            </h3>
+            <p className="text-sm leading-relaxed mb-6 text-slate-500">
               Tell our AI assistant about your interview needs. Just speak naturally — it'll handle the rest.
             </p>
 
             <div className="flex flex-wrap gap-2">
-              {["Hands-Free", "AI Powered", "Upcoming"].map((tag) => (
+              {["Hands-Free", "AI Powered", "Quick Setup"].map((tag) => (
                 <span
                   key={tag}
-                  className="text-[11px] px-3 py-1 rounded-full"
+                  className="text-[11px] px-3 py-1 rounded-full font-medium"
                   style={{
                     background: "rgba(255,255,255,0.03)",
                     border: "1px solid rgba(255,255,255,0.05)",
-                    color: "#374151",
+                    color: "#6b7280",
                   }}>
                   {tag}
                 </span>
               ))}
             </div>
-          </div>
-
-          {/* Hover overlay tooltip */}
-          <div
-            className="absolute inset-0 flex items-center justify-center rounded-3xl transition-all duration-300"
-            style={{
-              background: "rgba(3,0,26,0.6)",
-              backdropFilter: "blur(2px)",
-              opacity: hovered === "voice" ? 1 : 0,
-              zIndex: 30,
-            }}
-          >
-            <div className="flex flex-col items-center gap-2 text-center px-6">
-              <div className="w-12 h-12 rounded-full flex items-center justify-center mb-2"
-                style={{ background: "rgba(139,92,246,0.2)", border: "1px solid rgba(139,92,246,0.4)" }}>
-                <Zap className="h-6 w-6 text-violet-400" />
-              </div>
-              <p className="text-base font-bold text-white">🚀 Upcoming Feature</p>
-              <p className="text-sm text-slate-400">We're working hard to bring this to you soon!</p>
+            
+            {/* Arrow CTA */}
+            <div className="mt-6 flex items-center gap-2 text-sm font-semibold text-slate-600">
+              <span>Temporarily disabled</span>
             </div>
           </div>
         </button>

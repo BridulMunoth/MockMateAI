@@ -1,35 +1,159 @@
 "use client";
 
-import { useState } from "react";
-import { Mic, MicOff, Volume2, ChevronRight } from "lucide-react";
-import { FileUploadZone } from "./FileUploadZone";
+import { useState, useRef, useEffect } from "react";
+import { Mic, MicOff, Loader2, Play, Volume2 } from "lucide-react";
 
 interface Props {
-  onSubmit: (data: { companyName: string; resume: File | null; jobDescription: File | null; prepMaterial: File | null }) => void;
+  onSubmit: (data: any) => void;
   onBack: () => void;
 }
 
-type VoiceState = "idle" | "listening" | "processing";
+type VoiceState = "idle" | "speaking" | "listening" | "processing" | "error" | "complete";
 
 export const VoiceCollectView = ({ onSubmit, onBack }: Props) => {
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
-  const [companyName, setCompanyName] = useState("");
-  const [resume, setResume] = useState<File | null>(null);
-  const [jobDescription, setJobDescription] = useState<File | null>(null);
-  const [prepMaterial, setPrepMaterial] = useState<File | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string>("");
+  const [assistantText, setAssistantText] = useState<string>("Ready to start?");
+  
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
 
-  const toggleListen = () => {
-    if (voiceState === "idle") {
+  // Conversational state
+  const historyRef = useRef<{ role: string; content: string }[]>([]);
+  const currentDataRef = useRef<any>({});
+
+  useEffect(() => {
+    return () => {
+      // Cleanup on unmount
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+        mediaRecorderRef.current.stop();
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+      }
+      window.speechSynthesis.cancel();
+    };
+  }, []);
+
+  const speak = (text: string, onEnd?: () => void) => {
+    setVoiceState("speaking");
+    setAssistantText(text);
+    
+    // Add to history
+    historyRef.current.push({ role: "assistant", content: text });
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    // Try to pick a natural sounding voice if available
+    const voices = window.speechSynthesis.getVoices();
+    const goodVoice = voices.find(v => v.lang.includes("en") && (v.name.includes("Google") || v.name.includes("Natural")));
+    if (goodVoice) utterance.voice = goodVoice;
+
+    utterance.rate = 1.05;
+    utterance.pitch = 1;
+
+    utterance.onend = () => {
+      if (onEnd) onEnd();
+    };
+
+    // Edge case if speech synth gets stuck
+    utterance.onerror = () => {
+      if (onEnd) onEnd();
+    };
+
+    window.speechSynthesis.cancel(); // clear queue
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const startConversation = () => {
+    historyRef.current = [];
+    currentDataRef.current = {};
+    speak("Hi! I'm your AI setup assistant. What role are you interviewing for?", () => {
+      startRecording();
+    });
+  };
+
+  const startRecording = async () => {
+    try {
+      if (!streamRef.current) {
+        streamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
+      
+      const mediaRecorder = new MediaRecorder(streamRef.current);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        await processAudio(audioBlob);
+      };
+
+      mediaRecorder.start();
       setVoiceState("listening");
-    } else if (voiceState === "listening") {
-      setVoiceState("processing");
-      // Simulate processing
-      setTimeout(() => setVoiceState("idle"), 2000);
+      setErrorMsg("");
+    } catch (err) {
+      console.error("Error accessing microphone:", err);
+      setVoiceState("error");
+      setErrorMsg("Microphone access denied. Please allow mic permissions.");
     }
   };
 
-  const handleSubmit = () => {
-    onSubmit({ companyName, resume, jobDescription, prepMaterial });
+  const stopRecordingManually = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+      mediaRecorderRef.current.stop();
+      setVoiceState("processing");
+    }
+  };
+
+  const processAudio = async (audioBlob: Blob) => {
+    setVoiceState("processing");
+    try {
+      const formData = new FormData();
+      formData.append("audio", audioBlob, "recording.webm");
+      formData.append("history", JSON.stringify(historyRef.current));
+      formData.append("currentData", JSON.stringify(currentDataRef.current));
+
+      const response = await fetch("/api/ai/voice-form-chat", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) throw new Error("Failed to process voice");
+
+      const data = await response.json();
+      
+      // Update state
+      currentDataRef.current = data.formData;
+
+      if (data.isComplete) {
+        setVoiceState("complete");
+        speak(data.nextQuestion || "Perfect, setting up your interview now!", () => {
+           // Wait a second for smooth transition
+           setTimeout(() => {
+             if (streamRef.current) {
+                streamRef.current.getTracks().forEach((t) => t.stop());
+             }
+             onSubmit(currentDataRef.current);
+           }, 500);
+        });
+      } else {
+        // Ask the next question and loop!
+        speak(data.nextQuestion, () => {
+          startRecording();
+        });
+      }
+
+    } catch (err) {
+      console.error("Error processing voice:", err);
+      setVoiceState("error");
+      setErrorMsg("Failed to understand. Please tap mic to try answering again.");
+    }
   };
 
   return (
@@ -38,19 +162,25 @@ export const VoiceCollectView = ({ onSubmit, onBack }: Props) => {
 
       <div className="w-full max-w-lg flex flex-col gap-8 animate-fade-up">
         {/* Header */}
-        <div className="text-center">
+        <div className="text-center relative z-10">
           <button onClick={onBack} className="text-xs text-muted-foreground hover:text-white transition-colors mb-4 inline-flex items-center gap-1">
             ← Back
           </button>
-          <h2 className="text-3xl font-bold text-white">Voice Setup</h2>
-          <p className="text-muted-foreground mt-2 text-sm">
-            Tap the mic and tell the AI your role, company, and what kind of interview you want.
-          </p>
+          <h2 className="text-3xl font-bold text-white">Voice Agent Setup</h2>
+          
+          {/* Conversational Bubble */}
+          <div className="mt-6 p-6 rounded-3xl glass-strong border border-white/10 shadow-2xl relative">
+             <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-aurora/20 text-aurora text-[10px] uppercase tracking-widest px-3 py-1 rounded-full font-bold">
+               Assistant
+             </div>
+             <p className={`text-lg font-medium transition-opacity duration-300 ${voiceState === "speaking" ? "text-white animate-pulse" : "text-white/80"}`}>
+               "{assistantText}"
+             </p>
+          </div>
         </div>
 
-        {/* Voice button */}
-        <div className="flex flex-col items-center gap-6">
-          {/* Mic button with rings */}
+        {/* Action button */}
+        <div className="flex flex-col items-center gap-6 mt-4 z-10">
           <div className="relative">
             {voiceState === "listening" && (
               <>
@@ -58,90 +188,78 @@ export const VoiceCollectView = ({ onSubmit, onBack }: Props) => {
                 <span className="absolute inset-[-12px] rounded-full bg-cyan-500/10 animate-ping" style={{ animationDelay: "150ms" }} />
               </>
             )}
+            {voiceState === "speaking" && (
+               <span className="absolute inset-0 rounded-full bg-aurora/30 animate-pulse scale-125" />
+            )}
+
             <button
-              onClick={toggleListen}
-              className={`relative h-24 w-24 rounded-full flex items-center justify-center transition-all duration-300 shadow-[var(--shadow-glow)] ${
+              onClick={() => {
+                if (voiceState === "idle") startConversation();
+                else if (voiceState === "listening") stopRecordingManually();
+                else if (voiceState === "error") startRecording();
+              }}
+              disabled={voiceState === "processing" || voiceState === "speaking" || voiceState === "complete"}
+              className={`relative h-32 w-32 rounded-full flex items-center justify-center transition-all duration-300 shadow-[var(--shadow-glow)] ${
                 voiceState === "listening"
                   ? "bg-gradient-to-br from-cyan-500 to-teal-600 scale-110"
-                  : voiceState === "processing"
-                  ? "bg-secondary animate-pulse cursor-not-allowed"
+                  : voiceState === "processing" || voiceState === "complete"
+                  ? "bg-secondary cursor-not-allowed"
+                  : voiceState === "speaking"
+                  ? "bg-gradient-to-br from-aurora to-violet-600 shadow-[0_0_40px_rgba(139,92,246,0.5)]"
+                  : voiceState === "error"
+                  ? "bg-gradient-to-br from-red-500 to-rose-700 hover:scale-105"
                   : "bg-gradient-to-br from-violet-600 to-indigo-700 hover:scale-105"
               }`}
             >
-              {voiceState === "listening" ? (
-                <MicOff className="h-10 w-10 text-white" />
-              ) : voiceState === "processing" ? (
-                <Volume2 className="h-10 w-10 text-muted-foreground" />
+              {voiceState === "idle" ? (
+                <Play className="h-14 w-14 text-white ml-2" />
+              ) : voiceState === "listening" ? (
+                <Mic className="h-14 w-14 text-white" />
+              ) : voiceState === "processing" || voiceState === "complete" ? (
+                <Loader2 className="h-14 w-14 text-white animate-spin" />
+              ) : voiceState === "speaking" ? (
+                <Volume2 className="h-14 w-14 text-white animate-pulse" />
               ) : (
-                <Mic className="h-10 w-10 text-white" />
+                <Mic className="h-14 w-14 text-white" />
               )}
             </button>
           </div>
 
           {/* Voice state label */}
-          <p className="text-sm text-muted-foreground h-5">
-            {voiceState === "idle" && "Tap to speak"}
+          <div className="text-center h-16 flex flex-col items-center justify-center">
+            {voiceState === "idle" && <p className="text-sm text-muted-foreground">Tap Play to start conversation</p>}
+            {voiceState === "speaking" && <p className="text-aurora text-sm font-medium animate-pulse">Assistant is speaking…</p>}
             {voiceState === "listening" && (
-              <span className="text-cyan-400 animate-pulse">Listening… tap again to stop</span>
+              <p className="text-cyan-400 animate-pulse text-sm font-medium">Listening… tap Mic when done</p>
             )}
             {voiceState === "processing" && (
-              <span className="text-violet-400">Processing your voice…</span>
+              <p className="text-violet-400 text-sm font-medium animate-pulse">Thinking…</p>
             )}
-          </p>
+            {voiceState === "complete" && (
+              <p className="text-emerald-400 text-sm font-medium">All set! Redirecting…</p>
+            )}
+            {voiceState === "error" && (
+              <p className="text-red-400 text-sm font-medium">{errorMsg}</p>
+            )}
+          </div>
 
           {/* Voice waveform (decorative) */}
-          {voiceState === "listening" && (
-            <div className="flex items-end gap-1 h-10 animate-fadeIn">
-              {Array.from({ length: 20 }).map((_, i) => (
+          {(voiceState === "listening" || voiceState === "speaking") && (
+            <div className="flex items-end gap-1.5 h-12 animate-fadeIn">
+              {Array.from({ length: 24 }).map((_, i) => (
                 <span
                   key={i}
-                  className="w-1 rounded-full bg-cyan-400 transition-all"
+                  className={`w-1.5 rounded-full transition-all ${voiceState === "speaking" ? "bg-aurora" : "bg-cyan-400"}`}
                   style={{
-                    height: `${8 + Math.abs(Math.sin(i * 0.7)) * 28}px`,
-                    opacity: 0.4 + (i % 3) * 0.2,
-                    animationDelay: `${i * 50}ms`,
+                    height: `${12 + Math.abs(Math.sin(i * 0.8)) * 36}px`,
+                    opacity: 0.5 + (i % 3) * 0.2,
+                    animationDelay: `${i * 40}ms`,
                   }}
                 />
               ))}
             </div>
           )}
         </div>
-
-        {/* Divider */}
-        <div className="flex items-center gap-3">
-          <div className="flex-1 h-px bg-white/5" />
-          <span className="text-xs text-muted-foreground">Or fill in manually</span>
-          <div className="flex-1 h-px bg-white/5" />
-        </div>
-
-        {/* Manual company name */}
-        <div>
-          <label className="text-sm font-medium text-white/80 block mb-2">
-            Company Name <span className="text-muted-foreground font-normal text-xs">(optional)</span>
-          </label>
-          <input
-            type="text"
-            placeholder="e.g. Google, your college, startup name…"
-            value={companyName}
-            onChange={(e) => setCompanyName(e.target.value)}
-            className="w-full rounded-2xl bg-secondary/60 border border-white/10 px-4 py-3 text-sm text-white placeholder:text-muted-foreground focus:outline-none focus:border-aurora/50 focus:ring-1 focus:ring-aurora/30 transition-all"
-          />
-        </div>
-
-        {/* File Uploads */}
-        <div className="space-y-4">
-          <FileUploadZone label="Resume / CV" description="Upload your resume for personalised questions" file={resume} onFile={setResume} />
-          <FileUploadZone label="Job Description" description="The JD shared by the company" file={jobDescription} onFile={setJobDescription} />
-          <FileUploadZone label="Prep Material" description="Notes, study material, or any file shared by your college/company" file={prepMaterial} onFile={setPrepMaterial} />
-        </div>
-
-        {/* Submit */}
-        <button
-          onClick={handleSubmit}
-          className="w-full py-3.5 rounded-2xl bg-aurora text-primary-foreground font-semibold shadow-[var(--shadow-glow)] hover:scale-[1.02] transition-transform flex items-center justify-center gap-2"
-        >
-          Generate My Interview <ChevronRight className="h-4 w-4" />
-        </button>
       </div>
     </div>
   );

@@ -25,6 +25,8 @@
   --font-mona-sans: "Mona Sans", sans-serif;
 
   --bg-pattern: url("/pattern.png");
+
+  --color-aurora: hsl(258 90% 66%);
 }
 
 :root {
@@ -367,17 +369,6 @@
   color: transparent;
 }
 
-@utility text-aurora {
-  background: var(--gradient-aurora);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
-@utility bg-aurora {
-  background: var(--gradient-aurora);
-}
-
 @utility bg-grid {
   background-image:
     linear-gradient(hsl(220 30% 100% / 0.04) 1px, transparent 1px),
@@ -390,6 +381,9 @@
   box-shadow: 0 0 0 1px hsl(258 90% 66% / 0.4), 0 0 40px hsl(258 90% 66% / 0.35);
 }
 
+@utility animate-fade-in-up { 
+  animation: fade-in-up 0.6s var(--transition-smooth) both; 
+}
 @utility animate-float { 
   animation: float 6s ease-in-out infinite; 
 }
@@ -401,6 +395,14 @@
 }
 @utility animate-shimmer { 
   animation: shimmer 2.5s linear infinite; 
+}
+@utility animate-speak {
+  @apply absolute inline-flex h-full w-full animate-ping rounded-full bg-aurora/30;
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes float {

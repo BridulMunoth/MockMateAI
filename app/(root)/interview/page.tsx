@@ -4,11 +4,12 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Mic, MicOff, Pause, Play, PhoneOff, Bot, User, Volume2, Phone } from "lucide-react";
+import { Mic, MicOff, PhoneOff, Bot, User, Phone } from "lucide-react";
 import { getCurrentUser } from "@/lib/actions/auth.action";
 import { getInterviewById } from "@/lib/actions/interview.action";
 import { verifyAssistant } from "@/lib/actions/vapi.action";
 import { vapi } from "@/lib/vapi.sdk";
+import CompanyLogo from "@/components/CompanyLogo";
 
 type Msg = { role: "ai" | "user"; text: string; time: string };
 
@@ -58,6 +59,16 @@ const InterviewContent = () => {
   const [callStatus, setCallStatus] = useState<'INACTIVE'|'CONNECTING'|'ACTIVE'|'FINISHED'>('INACTIVE');
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [vapiError, setVapiError] = useState<string | null>(null);
+  const [partialMsg, setPartialMsg] = useState<Msg | null>(null);
+
+  // ── Session tracking ──────────────────────────────────────────────────────
+  // 'limit' = free-tier cut-off (friendly), 'error' = real failure, null = normal end
+  const [callEndReason, setCallEndReason]   = useState<'limit' | 'error' | 'normal' | null>(null);
+  const [questionCount, setQuestionCount]   = useState(0);
+  const startedAtRef   = useRef<Date | null>(null);
+  const endedAtRef     = useRef<Date | null>(null);
+  const questionCountRef = useRef(0);
+  // ─────────────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     secondsRef.current = seconds;
@@ -94,39 +105,97 @@ const InterviewContent = () => {
     const onCallStart = () => {
       setCallStatus('ACTIVE');
       setPaused(false);
+      startedAtRef.current = new Date();
+      setCallEndReason(null);
+      questionCountRef.current = 0;
+      setQuestionCount(0);
     };
+
     const onCallEnd = () => {
+      endedAtRef.current = new Date();
       setCallStatus('FINISHED');
       setPaused(true);
+
+      // Determine if this ended because the free tier limit was hit
+      const isFreeData = interviewData && !interviewData.isPremium;
+      const freeDurationCap = 15 * 60; // 15 min in seconds
+      const freeQuestionCap = 5;
+      const hitTimeLimit = secondsRef.current >= freeDurationCap - 10; // within 10s of cap
+      const hitQuestionLimit = questionCountRef.current >= freeQuestionCap;
+
+      if (isFreeData && (hitTimeLimit || hitQuestionLimit)) {
+        setCallEndReason('limit');
+      } else {
+        setCallEndReason('normal');
+      }
+
+      // Save session stats to the interview document
+      if (id && id !== 'unknown') {
+        fetch('/api/vapi/session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            interviewId: id,
+            startedAt: startedAtRef.current?.toISOString(),
+            endedAt: endedAtRef.current?.toISOString(),
+            durationSeconds: secondsRef.current,
+            questionsCovered: questionCountRef.current,
+          }),
+        }).catch(console.error);
+      }
     };
 
     const onMessage = (message: any) => {
-      if (message.type === 'transcript' && message.transcriptType === 'final') {
-        const newMessage: Msg = { 
-          role: message.role === 'assistant' ? 'ai' : 'user', 
-          text: message.transcript,
-          time: formatTime(secondsRef.current) 
-        };
-        // Replace previous message so only the active line is shown
-        setMsgs([newMessage]);
+      if (message.type !== 'transcript') return;
+      const role: 'ai' | 'user' = message.role === 'assistant' ? 'ai' : 'user';
+      const text: string = message.transcript;
+
+      // Count AI questions (heuristic: ends with '?' or is a final AI message)
+      if (role === 'ai' && message.transcriptType === 'final' && text.includes('?')) {
+        questionCountRef.current += 1;
+        setQuestionCount(questionCountRef.current);
+      }
+
+      if (message.transcriptType === 'partial') {
+        setPartialMsg({ role, text, time: formatTime(secondsRef.current) });
+      } else if (message.transcriptType === 'final') {
+        setPartialMsg(null);
+        setMsgs(prev => [...prev, { role, text, time: formatTime(secondsRef.current) }]);
       }
     };
 
     const onSpeechStart = () => setIsSpeaking(true);
-    const onSpeechEnd = () => setIsSpeaking(false);
+    const onSpeechEnd   = () => setIsSpeaking(false);
 
     const onError = (error: any) => {
-      console.error('Vapi Error Event:', error);
-      
-      // Provide more detailed guidance based on error type
-      let errorMsg = error.message || "An unknown error occurred while connecting to the AI.";
-      if (error.type === 'ejected' || error.msg === 'Meeting has ended') {
-        errorMsg = "The meeting was terminated (Ejected). Please check if your Vapi Assistant ID is correct and you have remaining minutes.";
-      }
+      // Vapi wraps the actual error inside error.error (daily-error envelope)
+      // Shape: { type: 'daily-error', error: { type: 'ejected', msg: 'Meeting has ended' } }
+      const inner = error?.error ?? error?.message ?? error;
+      const isNaturalEnd =
+        inner?.type === 'ejected' ||
+        inner?.msg  === 'Meeting has ended' ||
+        error?.type === 'ejected' ||
+        error?.errorMsg === 'Meeting has ended';
 
-      setVapiError(errorMsg);
-      setCallStatus('INACTIVE');
-      setPaused(true);
+      if (isNaturalEnd) {
+        // This is NOT an error — Vapi naturally ends the call this way.
+        // Silently treat as call-end (the call-end event may fire too, that's fine).
+        endedAtRef.current = new Date();
+        setCallStatus('FINISHED');
+        setPaused(true);
+
+        const isFreeData = interviewData && !interviewData.isPremium;
+        const hitTimeLimit    = secondsRef.current >= 15 * 60 - 10;
+        const hitQuestionLimit = questionCountRef.current >= 5;
+        setCallEndReason((isFreeData && (hitTimeLimit || hitQuestionLimit)) ? 'limit' : 'normal');
+      } else {
+        // Genuine technical error — log it and show the red error UI
+        console.error('[MockMate] Vapi error:', inner?.msg || error?.errorMsg || error);
+        setVapiError(inner?.msg || error?.errorMsg || 'Connection error. Please try again.');
+        setCallEndReason('error');
+        setCallStatus('INACTIVE');
+        setPaused(true);
+      }
     };
 
     vapi.on('call-start', onCallStart);
@@ -143,8 +212,8 @@ const InterviewContent = () => {
       vapi.off('speech-start', onSpeechStart);
       vapi.off('speech-end', onSpeechEnd);
       vapi.off('error', onError);
-    }
-  }, []);
+    };
+  }, [id, interviewData]);
 
   useEffect(() => {
     if (paused || callStatus !== 'ACTIVE') return;
@@ -186,6 +255,8 @@ const InterviewContent = () => {
                 techstack: interviewData?.techstack?.join(', ') || "general technologies",
                 interviewType: interviewData?.type?.join(', ') || "technical",
                 questionCount: interviewData?.questionCount || 5,
+                resumeText: interviewData?.resumeText || "No resume provided.",
+                jobDescription: interviewData?.jdText || "No JD provided.",
             }
         });
       } catch (e: any) {
@@ -212,14 +283,9 @@ const InterviewContent = () => {
         <div className="flex flex-col sm:flex-row sm:items-center gap-5">
           <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-700 ring-1 ring-white/10 flex items-center justify-center text-2xl shadow-[var(--shadow-soft)] overflow-hidden">
             {interviewData?.companyName ? (
-              <img 
-                src={`https://cdn.simpleicons.org/${interviewData.companyName.toLowerCase().replace(/\s+/g, '')}`} 
-                alt={interviewData.companyName}
-                className="w-8 h-8 object-contain"
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                  e.currentTarget.parentElement!.innerHTML = `<span class="text-white">${interviewData.companyName.substring(0, 2).toUpperCase()}</span>`;
-                }}
+              <CompanyLogo
+                name={interviewData.companyName}
+                fallback={interviewData.companyName.substring(0, 2).toUpperCase()}
               />
             ) : (
               <span>🪐</span>
@@ -240,7 +306,7 @@ const InterviewContent = () => {
                   <div
                     key={index}
                     title={t}
-                    className="relative group/tech z-10 hover:z-20 h-8 w-8 rounded-full bg-secondary ring-2 ring-card flex items-center justify-center overflow-hidden p-1.5 transition-all duration-200 hover:ring-aurora/60 hover:scale-110 shadow-[var(--shadow-soft)]"
+                    className="relative group/tech z-10 hover:z-20 h-6 w-6 flex items-center justify-center transition-all duration-200 hover:scale-110"
                   >
                     <img 
                       src={`https://cdn.simpleicons.org/${iconSlug}`} 
@@ -248,7 +314,7 @@ const InterviewContent = () => {
                       className="h-full w-full object-contain"
                       onError={(e) => {
                         e.currentTarget.style.display = 'none';
-                        e.currentTarget.parentElement!.innerHTML = `<span class="text-[10px] font-bold text-white">${t.substring(0, 1)}</span>`;
+                        e.currentTarget.parentElement!.innerHTML = `<span class="text-[10px] font-bold text-white bg-secondary px-1.5 py-0.5 rounded-full">${t.substring(0, 1)}</span>`;
                       }}
                     />
                   </div>
@@ -258,8 +324,10 @@ const InterviewContent = () => {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <span className="px-3 py-1.5 rounded-full bg-secondary/70 border border-white/5 text-xs text-muted-foreground">
-            Technical
+          <span className="px-3 py-1.5 rounded-full bg-secondary/70 border border-white/5 text-xs text-muted-foreground capitalize">
+            {Array.isArray(interviewData?.type)
+              ? interviewData.type[0]
+              : interviewData?.type || "Interview"}
           </span>
           {callStatus === 'ACTIVE' && (
             <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full glass text-xs text-white">
@@ -272,7 +340,7 @@ const InterviewContent = () => {
 
       <div className="grid lg:grid-cols-[1fr_360px] gap-6">
         {/* Stage */}
-        <div className="rounded-3xl glass-strong p-6 md:p-10 relative overflow-hidden min-h-[560px] flex flex-col">
+        <div className="rounded-3xl glass-strong p-5 md:p-10 relative overflow-hidden min-h-[440px] md:min-h-[560px] flex flex-col">
           <div className="absolute -top-32 left-1/2 -translate-x-1/2 h-72 w-72 rounded-full bg-aurora opacity-30 blur-3xl" />
 
           <div className="relative grid sm:grid-cols-2 gap-6 items-center">
@@ -301,7 +369,7 @@ const InterviewContent = () => {
               <div className="relative">
                 <div className="relative h-28 w-28 rounded-full bg-secondary flex items-center justify-center ring-1 ring-white/10 overflow-hidden">
                   {user?.photoURL ? (
-                    <Image src={user.photoURL} alt="Your Avatar" fill sizes="112px" unoptimized className="object-cover" />
+                    <img src={user.photoURL} alt="Your Avatar" className="h-full w-full object-cover" />
                   ) : (
                     <User className="h-12 w-12 text-muted-foreground" />
                   )}
@@ -316,27 +384,89 @@ const InterviewContent = () => {
             <VoiceWave active={isSpeaking} key={tick} />
           </div>
 
-          {/* Transcript / Error State */}
+          {/* Transcript / Status State */}
           <div className="mt-6 flex-1 min-h-[120px] flex items-center justify-center">
-            {vapiError ? (
+
+            {/* ── Free Limit Hit ── */}
+            {callEndReason === 'limit' && (
+              <div className="text-center animate-fadeIn max-w-md w-full px-4">
+                <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-6 space-y-4">
+                  <div className="h-14 w-14 mx-auto rounded-full bg-amber-500/20 flex items-center justify-center">
+                    <span className="text-2xl">⏱️</span>
+                  </div>
+                  <div>
+                    <p className="text-amber-400 font-semibold text-lg">Free Session Ended</p>
+                    <p className="text-sm text-white/70 mt-1">
+                      Your free interview limit has been reached. Upgrade to Pro or Elite for unlimited sessions.
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-center gap-4 text-xs text-white/60 border-t border-white/10 pt-4">
+                    <span>⏳ {formatTime(seconds)} covered</span>
+                    {questionCount > 0 && <span>❓ {questionCount} questions asked</span>}
+                  </div>
+                  <a href="/pricing" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-amber-600 text-white text-sm font-bold hover:bg-amber-700 transition-all shadow-[0_0_20px_rgba(217,119,6,0.3)]">
+                    Upgrade to Continue →
+                  </a>
+                </div>
+              </div>
+            )}
+
+            {/* ── Normal End ── */}
+            {callEndReason === 'normal' && (
+              <div className="text-center animate-fadeIn max-w-md w-full px-4">
+                <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-6 space-y-4">
+                  <div className="h-14 w-14 mx-auto rounded-full bg-emerald-500/20 flex items-center justify-center">
+                    <span className="text-2xl">🎉</span>
+                  </div>
+                  <div>
+                    <p className="text-emerald-400 font-semibold text-lg">Interview Complete!</p>
+                    <p className="text-sm text-white/70 mt-1">
+                      Great work! Your responses are being analysed. Feedback will appear on your dashboard shortly.
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-center gap-4 text-xs text-white/60 border-t border-white/10 pt-4">
+                    <span>⏳ {formatTime(seconds)}</span>
+                    {questionCount > 0 && <span>❓ {questionCount} Qs</span>}
+                  </div>
+                  <a href="/dashboard" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 transition-all">
+                    Go to Dashboard →
+                  </a>
+                </div>
+              </div>
+            )}
+
+            {/* ── Real Error ── */}
+            {callEndReason === 'error' && vapiError && (
               <div className="text-center animate-fadeIn max-w-xl p-6 rounded-2xl bg-destructive-100/10 border border-destructive-100/20">
                 <p className="text-destructive-100 font-medium">{vapiError}</p>
                 <p className="text-xs text-muted-foreground mt-2">
-                  Check your Vapi dashboard logs or ensure your local webhook is correctly routed.
+                  If this keeps happening, check your microphone permissions or try refreshing.
                 </p>
               </div>
-            ) : (
+            )}
+
+            {/* ── Live / Idle Transcript ── */}
+            {!callEndReason && (
               <div ref={scrollRef} className="w-full flex justify-center px-4">
-                {msgs.length > 0 ? msgs.map((m, i) => (
-                  <div key={i} className="text-center animate-fadeIn max-w-2xl">
-                    <p className={`text-xl md:text-2xl font-medium leading-relaxed tracking-wide ${m.role === 'ai' ? 'text-white' : 'text-aurora'}`}>
-                      "{m.text}"
+                {partialMsg ? (
+                  <div className="text-center max-w-2xl">
+                    <p className={`text-xl md:text-2xl font-medium leading-relaxed tracking-wide opacity-70 ${partialMsg.role === 'ai' ? 'text-white' : 'text-aurora'}`}>
+                      &ldquo;{partialMsg.text}&rdquo;
                     </p>
-                    <span className="text-xs text-muted-foreground mt-3 block uppercase tracking-widest">
-                      {m.role === 'ai' ? 'MockMate is speaking' : 'You are speaking'}
+                    <span className="text-xs text-muted-foreground mt-3 block uppercase tracking-widest animate-pulse">
+                      {partialMsg.role === 'ai' ? 'MockMate is speaking…' : 'You are speaking…'}
                     </span>
                   </div>
-                )) : (
+                ) : msgs.length > 0 ? (
+                  <div className="text-center animate-fadeIn max-w-2xl">
+                    <p className={`text-xl md:text-2xl font-medium leading-relaxed tracking-wide ${msgs[msgs.length - 1].role === 'ai' ? 'text-white' : 'text-aurora'}`}>
+                      &ldquo;{msgs[msgs.length - 1].text}&rdquo;
+                    </p>
+                    <span className="text-xs text-muted-foreground mt-3 block uppercase tracking-widest">
+                      {msgs[msgs.length - 1].role === 'ai' ? 'MockMate said' : 'You said'}
+                    </span>
+                  </div>
+                ) : (
                   <div className="text-center animate-fadeIn max-w-2xl">
                     <p className="text-xl md:text-2xl font-medium leading-relaxed tracking-wide text-muted-foreground/50">
                       Waiting for conversation to begin...
@@ -380,8 +510,8 @@ const InterviewContent = () => {
           </div>
         </div>
 
-        {/* Sidebar */}
-        <aside className="space-y-4">
+        {/* Sidebar — hidden on mobile, visible on lg+ */}
+        <aside className="hidden lg:flex flex-col gap-4">
           {callStatus === 'ACTIVE' ? (
             <>
               <div className="p-5 rounded-2xl glass">
