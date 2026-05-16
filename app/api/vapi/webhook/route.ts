@@ -40,7 +40,7 @@ export async function POST(req: Request) {
                             if (audioRes.ok) {
                                 const audioBuffer = Buffer.from(await audioRes.arrayBuffer());
                                 messages[0].content.push({
-                                    type: "file",
+                                    type: "file" as any,
                                     data: audioBuffer,
                                     mimeType: "audio/wav" // Vapi usually provides wav or mp3
                                 });

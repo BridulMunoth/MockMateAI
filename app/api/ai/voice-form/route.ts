@@ -16,7 +16,7 @@ export async function POST(req: Request) {
 
     // Call Gemini 2.5 Flash Lite to parse the audio and extract interview parameters
     const { object } = await generateObject({
-      model: google("gemini-2.5-flash-lite"),
+      model: google("gemini-1.5-flash"),
       schema: z.object({
         companyName: z.string().describe("The name of the company or organization the user is applying to. If not mentioned, leave empty."),
         role: z.string().describe("The job role or position the user is interviewing for."),
@@ -36,9 +36,9 @@ export async function POST(req: Request) {
               text: "Listen to the user's audio and extract their interview preferences to fill out a setup form. Map their words to the required schema fields as accurately as possible.",
             },
             {
-              type: "file",
+              type: "file" as any,
               data: audioBuffer,
-              mimeType: audioFile.type || "audio/webm",
+              mimeType: (audioFile.type || "audio/wav") as any,
             },
           ],
         },
