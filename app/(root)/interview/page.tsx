@@ -53,6 +53,7 @@ const InterviewContent = () => {
   const [tick, setTick] = useState(0);
   const [user, setUser] = useState<any>(null);
   const [interviewData, setInterviewData] = useState<any>(null);
+  const [authChecking, setAuthChecking] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Vapi specific state
@@ -75,17 +76,24 @@ const InterviewContent = () => {
   }, [seconds]);
 
   useEffect(() => {
-    getCurrentUser().then((u) => setUser(u));
-  }, []);
-
-  useEffect(() => {
-    if (id) {
-      getInterviewById(id).then((data) => {
-        if (data) {
-          setInterviewData(data);
+    async function checkAuthAndLoad() {
+      try {
+        const u = await getCurrentUser();
+        setUser(u);
+        
+        if (id) {
+          const data = await getInterviewById(id);
+          if (data) {
+            setInterviewData(data);
+          }
         }
-      });
+      } catch (err) {
+        console.error("Auth and interview load error:", err);
+      } finally {
+        setAuthChecking(false);
+      }
     }
+    checkAuthAndLoad();
 
     // Verify Vapi Assistant configuration on the server using the private API Key
     const assistantId = process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID;
@@ -277,6 +285,76 @@ const InterviewContent = () => {
     setMuted(newMuted);
     vapi.setMuted(newMuted);
   };
+
+  if (authChecking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-aurora bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-8 w-8 border-2 border-aurora/30 border-t-aurora rounded-full animate-spin" />
+          <p className="text-sm text-muted-foreground font-medium animate-pulse">Verifying session...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-muted-foreground bg-background px-4">
+        <div className="text-center p-8 glass-strong rounded-3xl max-w-md border border-white/5 shadow-[var(--shadow-soft)]">
+          <h2 className="text-2xl font-bold text-white mb-4">Please Sign In</h2>
+          <p className="text-sm mb-6 text-white/60 leading-relaxed">You must be logged in to view and participate in this interview.</p>
+          <Link href="/sign-in" className="inline-flex items-center justify-center w-full py-3 rounded-full bg-aurora text-white font-semibold shadow-[var(--shadow-glow)] hover:scale-[1.02] transition-transform">
+            Go to Sign In
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (!interviewData) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-muted-foreground bg-background px-4">
+        <div className="text-center p-8 glass-strong rounded-3xl max-w-md border border-white/5 shadow-[var(--shadow-soft)]">
+          <h2 className="text-2xl font-bold text-white mb-4">Interview Not Found</h2>
+          <p className="text-sm mb-6 text-white/60 leading-relaxed">This interview does not exist, may have been deleted, or the link is invalid.</p>
+          <Link href="/dashboard" className="inline-flex items-center justify-center w-full py-3 rounded-full bg-aurora text-white font-semibold shadow-[var(--shadow-glow)] hover:scale-[1.02] transition-transform">
+            Go to Dashboard
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (interviewData.userId !== user.uid) {
+    return (
+      <div className="min-h-[80vh] flex items-center justify-center px-4">
+        <div className="text-center p-8 md:p-12 glass-strong rounded-[32px] max-w-lg border border-red-500/20 relative overflow-hidden shadow-[0_0_50px_rgba(239,68,68,0.1)]">
+          <div className="absolute -top-32 left-1/2 -translate-x-1/2 h-72 w-72 rounded-full bg-red-500 opacity-10 blur-3xl" />
+          <div className="h-20 w-20 mx-auto rounded-full bg-red-500/10 border border-red-500/30 flex items-center justify-center mb-6">
+            <span className="text-3xl text-red-500">🔒</span>
+          </div>
+          <h2 className="text-3xl font-bold text-white mb-4 tracking-tight">Access Denied</h2>
+          <p className="text-white/60 mb-8 text-sm leading-relaxed">
+            This interview session belongs to another account. For security and privacy reasons, you do not have permission to view or participate in this session.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link 
+              href="/dashboard" 
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 text-sm text-white transition-all font-semibold"
+            >
+              Go to Dashboard
+            </Link>
+            <Link 
+              href="/interview/new" 
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-red-500 to-orange-500 hover:opacity-90 text-sm text-white transition-all font-semibold shadow-[0_0_20px_rgba(239,68,68,0.3)]"
+            >
+              Create New Interview
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto py-10 px-4 md:px-8 space-y-6">

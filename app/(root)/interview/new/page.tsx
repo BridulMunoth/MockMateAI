@@ -56,38 +56,38 @@ function NewInterviewContent() {
       }
 
       setPlanChecked(true);
-    });
 
-    if (id) {
-      getInterviewById(id).then((data) => {
-        if (data) {
-          setRole(data.role || "your");
-          setInterviewId(data.id);
-          setScreen("breathing");
-        } else {
-          // Check if it's a preset interview from constants
-          const { availableInterviews } = require("@/constants/interviews");
-          const preset = availableInterviews.find((i: any) => i.id === id);
-          if (preset) {
-            setRole(preset.role);
-            setFormData({
-              role: preset.role,
-              companyName: preset.companyName || "",
-              interviewTypes: Array.isArray(preset.type) ? preset.type : [preset.type],
-              techStack: preset.techstack || [],
-              level: preset.level || "Mid-level",
-              amountMode: "questions",
-              questionCount: 5,
-            });
-            setScreen("generating");
+      if (id) {
+        getInterviewById(id).then((data) => {
+          if (data && data.userId === u.uid) {
+            setRole(data.role || "your");
+            setInterviewId(data.id);
+            setScreen("breathing");
           } else {
-            setScreen("choice");
+            // Check if it's a preset interview from constants
+            const { availableInterviews } = require("@/constants/interviews");
+            const preset = availableInterviews.find((i: any) => i.id === id);
+            if (preset) {
+              setRole(preset.role);
+              setFormData({
+                role: preset.role,
+                companyName: preset.companyName || "",
+                interviewTypes: Array.isArray(preset.type) ? preset.type : [preset.type],
+                techStack: preset.techstack || [],
+                level: preset.level || "Mid-level",
+                amountMode: "questions",
+                questionCount: 5,
+              });
+              setScreen("generating");
+            } else {
+              setScreen("choice");
+            }
           }
-        }
-      });
-    } else {
-      setScreen("choice");
-    }
+        });
+      } else {
+        setScreen("choice");
+      }
+    });
   }, [id]);
 
   const handleFormSubmit = (data: any) => {

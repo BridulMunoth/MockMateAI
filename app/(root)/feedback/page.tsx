@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState, Suspense } from "react";
+import { getCurrentUser } from "@/lib/actions/auth.action";
 import { getInterviewById, getFeedbacksByInterviewId } from "@/lib/actions/interview.action";
 import {
   ArrowRight,
@@ -64,6 +65,7 @@ const Ring = ({ value }: { value: number }) => {
 const FeedbackContent = () => {
   const searchParams = useSearchParams();
   const id = searchParams.get("id");
+  const [user, setUser] = useState<any>(null);
   const [interview, setInterview] = useState<any>(null);
   const [feedbacks, setFeedbacks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,10 +78,13 @@ const FeedbackContent = () => {
         return;
       }
       try {
-        const [interviewData, feedbackList] = await Promise.all([
+        const [u, interviewData, feedbackList] = await Promise.all([
+          getCurrentUser(),
           getInterviewById(id),
           getFeedbacksByInterviewId(id)
         ]);
+
+        setUser(u);
 
         if (interviewData) {
           setInterview(interviewData);
@@ -99,11 +104,73 @@ const FeedbackContent = () => {
   }, [id]);
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center text-aurora">Loading feedback...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center text-aurora bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-8 w-8 border-2 border-aurora/30 border-t-aurora rounded-full animate-spin" />
+          <p className="text-sm text-muted-foreground font-medium animate-pulse">Verifying session...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-muted-foreground bg-background px-4">
+        <div className="text-center p-8 glass-strong rounded-3xl max-w-md border border-white/5 shadow-[var(--shadow-soft)]">
+          <h2 className="text-2xl font-bold text-white mb-4">Please Sign In</h2>
+          <p className="text-sm mb-6 text-white/60 leading-relaxed">You must be logged in to view your interview feedback.</p>
+          <Link href="/sign-in" className="inline-flex items-center justify-center w-full py-3 rounded-full bg-aurora text-white font-semibold shadow-[var(--shadow-glow)] hover:scale-[1.02] transition-transform">
+            Go to Sign In
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   if (!interview) {
-    return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Interview not found.</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center text-muted-foreground bg-background px-4">
+        <div className="text-center p-8 glass-strong rounded-3xl max-w-md border border-white/5 shadow-[var(--shadow-soft)]">
+          <h2 className="text-2xl font-bold text-white mb-4">Interview Not Found</h2>
+          <p className="text-sm mb-6 text-white/60 leading-relaxed">This interview does not exist, may have been deleted, or the link is invalid.</p>
+          <Link href="/dashboard" className="inline-flex items-center justify-center w-full py-3 rounded-full bg-aurora text-white font-semibold shadow-[var(--shadow-glow)] hover:scale-[1.02] transition-transform">
+            Go to Dashboard
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (interview.userId !== user.uid) {
+    return (
+      <div className="min-h-[80vh] flex items-center justify-center px-4">
+        <div className="text-center p-8 md:p-12 glass-strong rounded-[32px] max-w-lg border border-red-500/20 relative overflow-hidden shadow-[0_0_50px_rgba(239,68,68,0.1)]">
+          <div className="absolute -top-32 left-1/2 -translate-x-1/2 h-72 w-72 rounded-full bg-red-500 opacity-10 blur-3xl" />
+          <div className="h-20 w-20 mx-auto rounded-full bg-red-500/10 border border-red-500/30 flex items-center justify-center mb-6">
+            <span className="text-3xl text-red-500">🔒</span>
+          </div>
+          <h2 className="text-3xl font-bold text-white mb-4 tracking-tight">Access Denied</h2>
+          <p className="text-white/60 mb-8 text-sm leading-relaxed">
+            This interview feedback belongs to another account. For security and privacy reasons, you do not have permission to view this report.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link 
+              href="/dashboard" 
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 text-sm text-white transition-all font-semibold"
+            >
+              Go to Dashboard
+            </Link>
+            <Link 
+              href="/interview/new" 
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-red-500 to-orange-500 hover:opacity-90 text-sm text-white transition-all font-semibold shadow-[0_0_20px_rgba(239,68,68,0.3)]"
+            >
+              Take an Interview
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (

@@ -24,6 +24,7 @@ export async function getInterviewById(id: string) {
         // Return serializable data — use explicit shape for type safety
         return {
             id: docSnap.id,
+            userId: (data?.userId as string) || "",
             role: (data?.role as string) || "",
             type: data?.type || [],
             techstack: data?.techstack || [],

@@ -10,7 +10,7 @@ import type { NextRequest } from 'next/server';
  */
 
 // Routes that REQUIRE authentication
-const PROTECTED_ROUTES = ['/dashboard', '/interview']; 
+const PROTECTED_ROUTES = ['/dashboard', '/interview', '/feedback']; 
 
 // The public authentication funnel
 const AUTH_ROUTES = ['/sign-in', '/sign-up', '/finishSignUp'];
@@ -33,7 +33,7 @@ export function proxy(request: NextRequest) {
     if (isProtectedRoute && !sessionCookie) {
         const loginUrl = new URL('/sign-in', request.url);
         // Optional: append callbackUrl so they return here after signing in
-        loginUrl.searchParams.set('callbackUrl', pathname);
+        loginUrl.searchParams.set('callbackUrl', pathname + request.nextUrl.search);
         return NextResponse.redirect(loginUrl);
     }
 
