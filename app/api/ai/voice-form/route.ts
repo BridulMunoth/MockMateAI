@@ -36,9 +36,9 @@ export async function POST(req: Request) {
               text: "Listen to the user's audio and extract their interview preferences to fill out a setup form. Map their words to the required schema fields as accurately as possible.",
             },
             {
-              type: "file" as any,
+              type: "file",
               data: audioBuffer,
-              mimeType: (audioFile.type || "audio/wav") as any,
+              mediaType: audioFile.type || "audio/wav",
             },
           ],
         },

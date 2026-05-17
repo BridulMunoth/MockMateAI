@@ -46,7 +46,7 @@ export async function POST(req: Request) {
         if (userId) {
             try {
                 const { revalidateTag } = await import("next/cache");
-                revalidateTag(`interviews-${userId}`);
+                revalidateTag(`interviews-${userId}`, "");
                 console.log(`[Session] Cache busted for user: ${userId}`);
             } catch (err) {
                 console.warn("[Session] Cache revalidation failed (expected in some environments)");

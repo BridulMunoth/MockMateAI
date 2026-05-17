@@ -22,13 +22,14 @@ export async function POST(request: Request) {
 
         // ── Server-side free tier enforcement ────────────────────────────────────
         // This is the security layer — client-side checks are UX only, this is real.
+        let isPremium = false;
         if (userid) {
             const userDoc = await db.collection("users").doc(userid).get();
             const userData = userDoc.data();
             const plan = userData?.plan ?? "free";
             const planExpiresAt = userData?.planExpiresAt;
 
-            const isPremium =
+            isPremium =
                 plan !== "free" &&
                 planExpiresAt &&
                 new Date(planExpiresAt) > new Date();

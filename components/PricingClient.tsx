@@ -192,10 +192,10 @@ export default function PricingClient({ user }: Props) {
 
             <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
                 {PLANS.map((plan) => {
-                    const isCurrent = isActive && currentPlan === plan.id;
+                    const isCurrent = Boolean(isActive && currentPlan === plan.id);
                     const activePlanData = PLANS.find(p => p.id === currentPlan);
-                    const isUpgrade = isActive && activePlanData && plan.price > activePlanData.price;
-                    const isDowngrade = isActive && activePlanData && plan.price < activePlanData.price;
+                    const isUpgrade = Boolean(isActive && activePlanData && plan.price > activePlanData.price);
+                    const isDowngrade = Boolean(isActive && activePlanData && plan.price < activePlanData.price);
                     const upgradePrice = isUpgrade ? plan.price - (activePlanData?.price || 0) : plan.price;
 
                     return (
