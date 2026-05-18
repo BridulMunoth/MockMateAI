@@ -15,49 +15,29 @@ const normalizeTechName = (tech: string): string | null => {
   return (mappings as Record<string, string>)[key] ?? null;
 };
 
-const checkIconExists = async (url: string): Promise<boolean> => {
-  try {
-    const res = await fetch(url, { method: "HEAD" });
-    return res.ok;
-  } catch {
-    return false;
-  }
-};
+/** Synchronously returns a list of technology logos and their fallback URLs */
+export const getTechLogosSync = (techArray: string[]) => {
+  return techArray.map((tech) => {
+    const normalized = normalizeTechName(tech);
+    const simpleSlug = tech.toLowerCase().replace(/\s+/g, "").replace(/\.js$/, "");
+    const encoded = encodeURIComponent(tech.slice(0, 2).toUpperCase());
 
-/** Resolves the best available icon URL for a skill name. Falls back gracefully. */
-const resolveIconURL = async (tech: string): Promise<string> => {
-  const normalized = normalizeTechName(tech);
+    const fallbacks: string[] = [];
 
-  if (normalized) {
-    // 1. Try Devicon original
-    const original = `${DEVICON_BASE}/${normalized}/${normalized}-original.svg`;
-    if (await checkIconExists(original)) return original;
+    if (normalized) {
+      fallbacks.push(`${DEVICON_BASE}/${normalized}/${normalized}-original.svg`);
+      fallbacks.push(`${DEVICON_BASE}/${normalized}/${normalized}-plain.svg`);
+    }
 
-    // 2. Try Devicon plain
-    const plain = `${DEVICON_BASE}/${normalized}/${normalized}-plain.svg`;
-    if (await checkIconExists(plain)) return plain;
-  }
+    fallbacks.push(`${SIMPLEICONS_BASE}/${simpleSlug}`);
+    fallbacks.push(`https://ui-avatars.com/api/?name=${encoded}&background=6d28d9&color=fff&size=28&bold=true&rounded=true&format=svg`);
 
-  // 3. Try Simple Icons (great for non-tech brands and tools)
-  const simpleSlug = tech.toLowerCase().replace(/\s+/g, "").replace(/\.js$/, "");
-  const simpleIcon = `${SIMPLEICONS_BASE}/${simpleSlug}`;
-  if (await checkIconExists(simpleIcon)) return simpleIcon;
-
-  // 4. Final fallback — a colored letter avatar via UI Avatars
-  // Domain guessing for arbitrary tech stacks (like excel.com, express.com) yields
-  // unrelated company logos, so we stick to safe initial avatars.
-  const encoded = encodeURIComponent(tech.slice(0, 2).toUpperCase());
-  return `https://ui-avatars.com/api/?name=${encoded}&background=6d28d9&color=fff&size=28&bold=true&rounded=true&format=svg`;
-};
-
-export const getTechLogos = async (techArray: string[]) => {
-  const results = await Promise.all(
-    techArray.map(async (tech) => ({
+    return {
       tech,
-      url: await resolveIconURL(tech),
-    }))
-  );
-  return results;
+      url: fallbacks[0],
+      fallbacks: fallbacks.slice(1),
+    };
+  });
 };
 
 export const getRandomInterviewCover = (): string => {

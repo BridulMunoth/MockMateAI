@@ -4,7 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Mic, MicOff, PhoneOff, Bot, User, Phone, Sparkles } from "lucide-react";
+import { Mic, MicOff, PhoneOff, Bot, User, Phone, Sparkles, CheckCircle2, AlertCircle, ArrowRight } from "lucide-react";
 import { getCurrentUser } from "@/lib/actions/auth.action";
 import { getInterviewById } from "@/lib/actions/interview.action";
 import { verifyAssistant } from "@/lib/actions/vapi.action";
@@ -50,6 +50,7 @@ const InterviewContent = () => {
   const [seconds, setSeconds] = useState(0);
   const secondsRef = useRef(0);
   const [msgs, setMsgs] = useState<Msg[]>(initialMsgs);
+  const msgsRef = useRef<Msg[]>(initialMsgs);
   const [tick, setTick] = useState(0);
   const [user, setUser] = useState<any>(null);
   const [interviewData, setInterviewData] = useState<any>(null);
@@ -69,7 +70,94 @@ const InterviewContent = () => {
   const startedAtRef   = useRef<Date | null>(null);
   const endedAtRef     = useRef<Date | null>(null);
   const questionCountRef = useRef(0);
-  // ─────────────────────────────────────────────────────────────────────────
+
+  // ── Feedback generation states ──
+  const [generatingFeedback, setGeneratingFeedback] = useState(false);
+  const [generatedFeedbackId, setGeneratedFeedbackId] = useState<string | null>(null);
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
+
+  const generateFeedback = async (currentMsgs: Msg[]) => {
+    if (!currentMsgs || currentMsgs.length === 0) {
+      console.log("[MockMate] No messages in conversation, skipping feedback generation.");
+      return;
+    }
+
+    setGeneratingFeedback(true);
+    setFeedbackError(null);
+
+    const transcriptText = currentMsgs
+      .map(m => `${m.role === 'ai' ? 'Interviewer' : 'Candidate'}: ${m.text}`)
+      .join('\n\n');
+
+    try {
+      const res = await fetch('/api/feedback/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          interviewId: id,
+          userId: user?.uid,
+          transcript: transcriptText
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to generate feedback report");
+      }
+
+      console.log("[MockMate] Feedback generated successfully:", data.feedbackId);
+      setGeneratedFeedbackId(data.feedbackId);
+    } catch (err: any) {
+      console.error("[MockMate] Feedback generation failed:", err);
+      setFeedbackError(err.message || "Something went wrong while generating feedback.");
+    } finally {
+      setGeneratingFeedback(false);
+    }
+  };
+
+  const completeInterviewSession = () => {
+    // Avoid duplicate executions if already ended
+    if (endedAtRef.current) return;
+    
+    endedAtRef.current = new Date();
+    setCallStatus('FINISHED');
+    setPaused(true);
+
+    const plan = user?.plan ?? "free";
+    const planExpiresAt = user?.planExpiresAt;
+    const isUserPremium = (plan !== "free" && !!planExpiresAt && new Date(planExpiresAt) > new Date()) || !!interviewData?.isPremium;
+    const isFreeData = !isUserPremium;
+
+    const durationCap = (interviewData?.duration || 15) * 60; 
+    const questionCap = (interviewData?.questionCount || 5);
+    
+    const hitTimeLimit = secondsRef.current >= durationCap - 5; 
+    const hitQuestionLimit = questionCountRef.current >= questionCap;
+
+    if (isFreeData && (hitTimeLimit || hitQuestionLimit)) {
+      setCallEndReason('limit');
+    } else {
+      setCallEndReason('normal');
+    }
+
+    // Save session stats & trigger feedback
+    if (id && id !== 'unknown' && startedAtRef.current && secondsRef.current > 5) {
+      fetch('/api/vapi/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          interviewId: id,
+          startedAt: startedAtRef.current?.toISOString(),
+          endedAt: endedAtRef.current?.toISOString(),
+          durationSeconds: secondsRef.current,
+          questionsCovered: questionCountRef.current,
+        }),
+      }).catch(console.error);
+
+      // Trigger automatic real-time evaluation
+      generateFeedback(msgsRef.current);
+    }
+  };
 
   useEffect(() => {
     secondsRef.current = seconds;
@@ -117,46 +205,14 @@ const InterviewContent = () => {
       setCallEndReason(null);
       questionCountRef.current = 0;
       setQuestionCount(0);
+      
+      setGeneratingFeedback(false);
+      setGeneratedFeedbackId(null);
+      setFeedbackError(null);
     };
 
     const onCallEnd = () => {
-      endedAtRef.current = new Date();
-      setCallStatus('FINISHED');
-      setPaused(true);
-
-      // Determine if this ended because the free tier limit was hit
-      const plan = user?.plan ?? "free";
-      const planExpiresAt = user?.planExpiresAt;
-      const isUserPremium = (plan !== "free" && !!planExpiresAt && new Date(planExpiresAt) > new Date()) || !!interviewData?.isPremium;
-      const isFreeData = !isUserPremium;
-
-      const durationCap = (interviewData?.duration || 15) * 60; 
-      const questionCap = (interviewData?.questionCount || 5);
-      
-      const hitTimeLimit = secondsRef.current >= durationCap - 5; 
-      const hitQuestionLimit = questionCountRef.current >= questionCap;
-
-      if (isFreeData && (hitTimeLimit || hitQuestionLimit)) {
-        setCallEndReason('limit');
-      } else {
-        setCallEndReason('normal');
-      }
-
-      // Save session stats to the interview document
-      // ✅ Only save if the call actually started and lasted more than 5 seconds
-      if (id && id !== 'unknown' && startedAtRef.current && secondsRef.current > 5) {
-        fetch('/api/vapi/session', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            interviewId: id,
-            startedAt: startedAtRef.current?.toISOString(),
-            endedAt: endedAtRef.current?.toISOString(),
-            durationSeconds: secondsRef.current,
-            questionsCovered: questionCountRef.current,
-          }),
-        }).catch(console.error);
-      }
+      completeInterviewSession();
     };
 
     const onMessage = (message: any) => {
@@ -179,9 +235,7 @@ const InterviewContent = () => {
         if (isFreeData && questionCountRef.current >= questionCap) {
           console.log("[MockMate] Free question limit reached. Ending call.");
           vapi.stop();
-          setCallEndReason('limit');
-          setCallStatus('FINISHED');
-          setPaused(true);
+          completeInterviewSession();
         }
       }
 
@@ -189,7 +243,11 @@ const InterviewContent = () => {
         setPartialMsg({ role, text, time: formatTime(secondsRef.current) });
       } else if (message.transcriptType === 'final') {
         setPartialMsg(null);
-        setMsgs(prev => [...prev, { role, text, time: formatTime(secondsRef.current) }]);
+        setMsgs(prev => {
+          const next = [...prev, { role, text, time: formatTime(secondsRef.current) }];
+          msgsRef.current = next;
+          return next;
+        });
       }
     };
 
@@ -197,8 +255,6 @@ const InterviewContent = () => {
     const onSpeechEnd   = () => setIsSpeaking(false);
 
     const onError = (error: any) => {
-      // Vapi wraps the actual error inside error.error (daily-error envelope)
-      // Shape: { type: 'daily-error', error: { type: 'ejected', msg: 'Meeting has ended' } }
       const inner = error?.error ?? error?.message ?? error;
       const isNaturalEnd =
         inner?.type === 'ejected' ||
@@ -207,23 +263,7 @@ const InterviewContent = () => {
         error?.errorMsg === 'Meeting has ended';
 
       if (isNaturalEnd) {
-        // This is NOT an error — Vapi naturally ends the call this way.
-        // Silently treat as call-end (the call-end event may fire too, that's fine).
-        endedAtRef.current = new Date();
-        setCallStatus('FINISHED');
-        setPaused(true);
-
-        const plan = user?.plan ?? "free";
-        const planExpiresAt = user?.planExpiresAt;
-        const isUserPremium = (plan !== "free" && !!planExpiresAt && new Date(planExpiresAt) > new Date()) || !!interviewData?.isPremium;
-        const isFreeData = !isUserPremium;
-
-        const durationCap = (interviewData?.duration || 15) * 60; 
-        const questionCap = (interviewData?.questionCount || 5);
-
-        const hitTimeLimit = secondsRef.current >= durationCap - 5; 
-        const hitQuestionLimit = questionCountRef.current >= questionCap;
-        setCallEndReason((isFreeData && (hitTimeLimit || hitQuestionLimit)) ? 'limit' : 'normal');
+        completeInterviewSession();
       } else {
         // Genuine technical error — log it and show the red error UI
         console.error('[MockMate] Vapi error:', inner?.msg || error?.errorMsg || error);
@@ -249,7 +289,7 @@ const InterviewContent = () => {
       vapi.off('speech-end', onSpeechEnd);
       vapi.off('error', onError);
     };
-  }, [id, interviewData]);
+  }, [id, interviewData, user]);
 
   useEffect(() => {
     if (paused || callStatus !== 'ACTIVE') return;
@@ -268,9 +308,7 @@ const InterviewContent = () => {
       if (isFreeData && nextSeconds >= durationCap) {
         console.log("[MockMate] Free duration limit reached. Ending call.");
         vapi.stop();
-        setCallEndReason('limit');
-        setCallStatus('FINISHED');
-        setPaused(true);
+        completeInterviewSession();
       }
     }, 1000);
     return () => clearInterval(id);
@@ -284,8 +322,12 @@ const InterviewContent = () => {
     if (callStatus === 'INACTIVE' || callStatus === 'FINISHED') {
       setCallStatus('CONNECTING');
       setMsgs([]);
+      msgsRef.current = [];
       setSeconds(0);
       setVapiError(null);
+      setGeneratingFeedback(false);
+      setGeneratedFeedbackId(null);
+      setFeedbackError(null);
       
       try {
         const assistantId = process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID;
@@ -331,7 +373,7 @@ const InterviewContent = () => {
       }
     } else {
       vapi.stop();
-      setCallStatus('FINISHED');
+      completeInterviewSession();
     }
   };
 
@@ -530,8 +572,96 @@ const InterviewContent = () => {
           {/* Transcript / Status State */}
           <div className="mt-6 flex-1 min-h-[120px] flex items-center justify-center">
 
+            {/* ── Feedback Generation States ── */}
+            {generatingFeedback && (
+              <div className="text-center animate-fadeIn max-w-md w-full px-4">
+                <div className="rounded-3xl border border-aurora/30 bg-aurora/5 p-8 space-y-6 shadow-[0_0_40px_rgba(139,92,246,0.15)] relative overflow-hidden backdrop-blur-sm">
+                  {/* Decorative orbital blur */}
+                  <div className="absolute -top-12 -left-12 h-24 w-24 rounded-full bg-aurora/20 blur-2xl animate-pulse" />
+                  <div className="absolute -bottom-12 -right-12 h-24 w-24 rounded-full bg-aurora/15 blur-2xl animate-pulse" />
+
+                  <div className="relative h-20 w-20 mx-auto flex items-center justify-center">
+                    {/* Ring animation */}
+                    <div className="absolute inset-0 rounded-full border-[3px] border-aurora/10 border-t-aurora animate-spin" />
+                    <div className="absolute inset-2 rounded-full border-[2px] border-aurora/5 border-b-aurora animate-spin-reverse" style={{ animationDirection: 'reverse' }} />
+                    <Sparkles className="h-8 w-8 text-aurora animate-pulse" />
+                  </div>
+                  <div className="space-y-2 relative z-10">
+                    <p className="text-white font-bold text-xl tracking-tight">Analyzing with Gemini AI...</p>
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                      We are evaluating your answers, technical depth, and communication skills to generate your rich feedback report.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {generatedFeedbackId && (
+              <div className="text-center animate-fadeIn max-w-md w-full px-4">
+                <div className="rounded-3xl border border-emerald-500/30 bg-emerald-500/5 p-8 space-y-6 shadow-[0_0_40px_rgba(16,185,129,0.15)] relative overflow-hidden backdrop-blur-sm">
+                  <div className="absolute -top-12 -left-12 h-24 w-24 rounded-full bg-emerald-500/20 blur-2xl" />
+                  
+                  <div className="h-16 w-16 mx-auto rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                    <CheckCircle2 className="h-8 w-8" />
+                  </div>
+                  <div className="space-y-2 relative z-10">
+                    <p className="text-emerald-400 font-extrabold text-2xl tracking-tight">Feedback Ready!</p>
+                    <p className="text-sm text-white/70 leading-relaxed">
+                      Gemini AI has completed your evaluation. Your custom score and rich report are ready to view.
+                    </p>
+                  </div>
+                  
+                  <div className="flex flex-col gap-3 relative z-10">
+                    <Link
+                      href={`/feedback?id=${id}`}
+                      className="inline-flex items-center justify-center gap-2 px-6 h-12 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-sm font-bold hover:opacity-90 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-[0_0_20px_rgba(16,185,129,0.4)]"
+                    >
+                      View Feedback Report
+                      <ArrowRight className="h-4 w-4" />
+                    </Link>
+                    <Link
+                      href="/dashboard"
+                      className="text-xs text-muted-foreground hover:text-white transition-colors"
+                    >
+                      Back to Dashboard
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {feedbackError && (
+              <div className="text-center animate-fadeIn max-w-md w-full px-4">
+                <div className="rounded-3xl border border-destructive-100/30 bg-destructive-100/5 p-8 space-y-6 shadow-[0_0_40px_rgba(239,68,68,0.15)] relative overflow-hidden backdrop-blur-sm">
+                  <div className="h-16 w-16 mx-auto rounded-full bg-destructive-100/10 border border-destructive-100/30 flex items-center justify-center text-destructive-100">
+                    <AlertCircle className="h-8 w-8" />
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-destructive-100 font-bold text-xl tracking-tight">Evaluation Failed</p>
+                    <p className="text-sm text-white/70 leading-relaxed">
+                      {feedbackError}
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-3 relative z-10">
+                    <button
+                      onClick={() => generateFeedback(msgsRef.current)}
+                      className="inline-flex items-center justify-center gap-2 px-6 h-12 rounded-full bg-destructive-100 hover:bg-destructive-100/90 text-white text-sm font-bold transition-all shadow-[0_0_20px_rgba(239,68,68,0.3)]"
+                    >
+                      Retry Analysis
+                    </button>
+                    <Link
+                      href="/dashboard"
+                      className="text-xs text-muted-foreground hover:text-white transition-colors"
+                    >
+                      Go to Dashboard
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* ── Free Limit Hit ── */}
-            {callEndReason === 'limit' && (
+            {callEndReason === 'limit' && !generatingFeedback && !generatedFeedbackId && !feedbackError && (
               <div className="text-center animate-fadeIn max-w-md w-full px-4">
                 <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-6 space-y-4">
                   <div className="h-14 w-14 mx-auto rounded-full bg-amber-500/20 flex items-center justify-center">
@@ -547,15 +677,25 @@ const InterviewContent = () => {
                     <span>⏳ {formatTime(seconds)} covered</span>
                     {questionCount > 0 && <span>❓ {questionCount} questions asked</span>}
                   </div>
-                  <a href="/pricing" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-amber-600 text-white text-sm font-bold hover:bg-amber-700 transition-all shadow-[0_0_20px_rgba(217,119,6,0.3)]">
-                    Upgrade to Continue →
-                  </a>
+                  <div className="flex flex-col gap-3">
+                    <a href="/pricing" className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-amber-600 text-white text-sm font-bold hover:bg-amber-700 transition-all shadow-[0_0_20px_rgba(217,119,6,0.3)]">
+                      Upgrade to Continue →
+                    </a>
+                    {msgs.length > 0 && (
+                      <button 
+                        onClick={() => generateFeedback(msgsRef.current)}
+                        className="text-xs text-amber-400/80 hover:text-amber-400 font-semibold transition-colors mt-1"
+                      >
+                        Generate Feedback for partial session anyway →
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
 
             {/* ── Normal End ── */}
-            {callEndReason === 'normal' && (
+            {callEndReason === 'normal' && !generatingFeedback && !generatedFeedbackId && !feedbackError && (
               <div className="text-center animate-fadeIn max-w-md w-full px-4">
                 <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-6 space-y-4">
                   <div className="h-14 w-14 mx-auto rounded-full bg-emerald-500/20 flex items-center justify-center">
@@ -571,9 +711,19 @@ const InterviewContent = () => {
                     <span>⏳ {formatTime(seconds)}</span>
                     {questionCount > 0 && <span>❓ {questionCount} Qs</span>}
                   </div>
-                  <a href="/dashboard" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 transition-all">
-                    Go to Dashboard →
-                  </a>
+                  <div className="flex flex-col gap-3">
+                    <a href="/dashboard" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 transition-all">
+                      Go to Dashboard →
+                    </a>
+                    {msgs.length > 0 && (
+                      <button 
+                        onClick={() => generateFeedback(msgsRef.current)}
+                        className="text-xs text-emerald-400/80 hover:text-emerald-400 font-semibold transition-colors mt-1"
+                      >
+                        Analyze with Gemini manually →
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
