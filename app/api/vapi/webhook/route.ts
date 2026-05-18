@@ -11,12 +11,13 @@ export async function POST(req: Request) {
         // Vapi sends different types of events. We only care about end-of-call-report
         if (payload?.message?.type === 'end-of-call-report') {
             const call = payload.message.call;
-            const variables = call.variableValues || {};
+            const variables = call.variableValues || call.metadata?.variableValues || {};
             const interviewId = variables.interviewId;
+            console.log("[Webhook] Extracted variables:", variables);
 
             if (interviewId && interviewId !== "unknown") {
-                const recordingUrl = call.recordingUrl || "";
-                const transcript = call.transcript || "No transcript available.";
+                const recordingUrl = call.recordingUrl || call.artifact?.recordingUrl || "";
+                const transcript = call.transcript || call.artifact?.transcript || "No transcript available.";
                 let aiAnalysis: any = null;
 
                 try {
@@ -79,7 +80,7 @@ export async function POST(req: Request) {
                     console.error("Gemini Analysis failed:", error);
                     // Fallback mock scores if Gemini fails completely
                     aiAnalysis = {
-                        overallSummary: call.summary || "No feedback generated.",
+                        overallSummary: call.summary || call.analysis?.summary || "No feedback generated.",
                         overallScore: 50,
                         technicalScore: 50,
                         communicationScore: 50,
@@ -117,11 +118,9 @@ export async function POST(req: Request) {
                 });
 
                 // 2. Update the parent Interview document for quick Dashboard rendering
-                const FieldValue = require("firebase-admin/firestore").FieldValue;
                 await db.collection("interviews").doc(interviewId).update({
                     latestScore: score,
                     latestAttemptAt: new Date().toISOString(),
-                    attemptCount: FieldValue.increment(1),
                     status: call.status || "ended",
                 });
 

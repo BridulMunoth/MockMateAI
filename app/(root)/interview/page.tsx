@@ -125,7 +125,11 @@ const InterviewContent = () => {
       setPaused(true);
 
       // Determine if this ended because the free tier limit was hit
-      const isFreeData = interviewData && !interviewData.isPremium;
+      const plan = user?.plan ?? "free";
+      const planExpiresAt = user?.planExpiresAt;
+      const isUserPremium = (plan !== "free" && !!planExpiresAt && new Date(planExpiresAt) > new Date()) || !!interviewData?.isPremium;
+      const isFreeData = !isUserPremium;
+
       const durationCap = (interviewData?.duration || 15) * 60; 
       const questionCap = (interviewData?.questionCount || 5);
       
@@ -164,6 +168,21 @@ const InterviewContent = () => {
       if (role === 'ai' && message.transcriptType === 'final' && text.includes('?')) {
         questionCountRef.current += 1;
         setQuestionCount(questionCountRef.current);
+
+        // Programmatically end the call if free tier limit is reached
+        const plan = user?.plan ?? "free";
+        const planExpiresAt = user?.planExpiresAt;
+        const isUserPremium = (plan !== "free" && !!planExpiresAt && new Date(planExpiresAt) > new Date()) || !!interviewData?.isPremium;
+        const isFreeData = !isUserPremium;
+        const questionCap = (interviewData?.questionCount || 5);
+
+        if (isFreeData && questionCountRef.current >= questionCap) {
+          console.log("[MockMate] Free question limit reached. Ending call.");
+          vapi.stop();
+          setCallEndReason('limit');
+          setCallStatus('FINISHED');
+          setPaused(true);
+        }
       }
 
       if (message.transcriptType === 'partial') {
@@ -194,9 +213,16 @@ const InterviewContent = () => {
         setCallStatus('FINISHED');
         setPaused(true);
 
-        const isFreeData = interviewData && !interviewData.isPremium;
-        const hitTimeLimit    = secondsRef.current >= 15 * 60 - 10;
-        const hitQuestionLimit = questionCountRef.current >= 5;
+        const plan = user?.plan ?? "free";
+        const planExpiresAt = user?.planExpiresAt;
+        const isUserPremium = (plan !== "free" && !!planExpiresAt && new Date(planExpiresAt) > new Date()) || !!interviewData?.isPremium;
+        const isFreeData = !isUserPremium;
+
+        const durationCap = (interviewData?.duration || 15) * 60; 
+        const questionCap = (interviewData?.questionCount || 5);
+
+        const hitTimeLimit = secondsRef.current >= durationCap - 5; 
+        const hitQuestionLimit = questionCountRef.current >= questionCap;
         setCallEndReason((isFreeData && (hitTimeLimit || hitQuestionLimit)) ? 'limit' : 'normal');
       } else {
         // Genuine technical error — log it and show the red error UI
@@ -228,11 +254,27 @@ const InterviewContent = () => {
   useEffect(() => {
     if (paused || callStatus !== 'ACTIVE') return;
     const id = setInterval(() => {
-      setSeconds((s) => s + 1);
+      const nextSeconds = secondsRef.current + 1;
+      setSeconds(nextSeconds);
       setTick((t) => t + 1);
+
+      // Programmatically end the call if free tier time limit is reached
+      const plan = user?.plan ?? "free";
+      const planExpiresAt = user?.planExpiresAt;
+      const isUserPremium = (plan !== "free" && !!planExpiresAt && new Date(planExpiresAt) > new Date()) || !!interviewData?.isPremium;
+      const isFreeData = !isUserPremium;
+      const durationCap = (interviewData?.duration || 15) * 60;
+
+      if (isFreeData && nextSeconds >= durationCap) {
+        console.log("[MockMate] Free duration limit reached. Ending call.");
+        vapi.stop();
+        setCallEndReason('limit');
+        setCallStatus('FINISHED');
+        setPaused(true);
+      }
     }, 1000);
     return () => clearInterval(id);
-  }, [paused, callStatus]);
+  }, [paused, callStatus, user, interviewData]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -255,6 +297,17 @@ const InterviewContent = () => {
         console.log("Starting Vapi call with Assistant ID:", assistantId);
 
         await vapi.start(assistantId, {
+            transcriber: {
+                provider: "deepgram",
+                model: "nova-2",
+                language: "en-US",
+                smartFormat: true,
+                keywords: [
+                    "React", "Next.js", "TypeScript", "JavaScript", "GraphQL", "Tailwind", 
+                    "Firebase", "Node.js", "MongoDB", "Express", "Vite", "MockMate", "API",
+                    "Redux", "Recoil", "Zustand", "Context API", "CSS", "HTML", "SQL", "NoSQL"
+                ]
+            },
             variableValues: {
                 username: user?.name?.split(' ')[0] || "there",
                 userid: user?.uid || user?.id || "anonymous",
@@ -267,6 +320,8 @@ const InterviewContent = () => {
                 questionCount: interviewData?.questionCount || 5,
                 resumeText: interviewData?.resumeText || "No resume provided.",
                 jobDescription: interviewData?.jdText || "No JD provided.",
+                prepText: interviewData?.prepText || "No prep material provided.",
+                prepMaterial: interviewData?.prepText || "No prep material provided.",
             }
         });
       } catch (e: any) {
